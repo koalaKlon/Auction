@@ -18,6 +18,18 @@ class User(AbstractUser):
     profile_picture = models.ImageField(upload_to='user_profiles/', blank=True, null=True)
     email = models.EmailField(unique=True)  # Добавление поля email
 
+    def calculate_average_rating(self):
+        """Пересчитываем средний рейтинг пользователя."""
+        ratings = Rating.objects.filter(user=self)  # Получаем все рейтинги для данного пользователя
+        if ratings:
+            total_rating = sum([rating.rating for rating in ratings])
+            avg_rating = total_rating / len(ratings)
+            self.rating = avg_rating  # Обновляем рейтинг
+            self.save()
+        else:
+            self.rating = 0  # Если нет рейтингов, ставим 0
+            self.save()
+
     # Уникальные и осмысленные имена для связанных полей
     groups = models.ManyToManyField(
         'auth.Group',
@@ -35,13 +47,14 @@ class User(AbstractUser):
 
 
 class Rating(models.Model):
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='ratings')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='given_ratings')
+    rated_user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='received_ratings', null=True)
     rating = models.DecimalField(max_digits=2, decimal_places=1)
     comment = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f'Rating {self.rating} for {self.user}'
+        return f'Rating {self.rating} for {self.rated_user} by {self.user}'
 
 
 class Category(models.Model):

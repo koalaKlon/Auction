@@ -79,7 +79,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'auction.wsgi.application'
 
-
+AUTH_USER_MODEL = 'auctions.User'
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
@@ -104,7 +104,7 @@ SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
     'ROTATE_REFRESH_TOKENS': False,
-    'BLACKLIST_AFTER_ROTATION': True,
+    'BLACKLIST_AFTER_ROTATION': False,
 }
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators

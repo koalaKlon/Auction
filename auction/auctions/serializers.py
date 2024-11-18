@@ -119,12 +119,16 @@ class RegisterSerializer(serializers.ModelSerializer):
         fields = ['username', 'password', 'email']  # Добавляем email в поля
 
     def create(self, validated_data):
-        user = User.objects.create_user(
-            username=validated_data['username'],
-            password=validated_data['password'],
-            email=validated_data['email']  # Сохраняем email
-        )
-        return user
+        try:
+            user = User.objects.create_user(
+                username=validated_data['username'],
+                password=validated_data['password'],
+                email=validated_data['email']
+            )
+            return user
+        except Exception as e:
+            print("Ошибка при создании пользователя:", e)
+            raise e  # Ретранслировать ошибку дальше
 
 
 class LoginSerializer(serializers.Serializer):
@@ -165,3 +169,15 @@ class TokenObtainPairSerializer(serializers.Serializer):
             'refresh': str(refresh),
             'access': str(access_token)
         }
+
+
+class UserProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['username', 'email', 'first_name', 'last_name', 'phone_number', 'profile_picture']
+
+    phone_number = serializers.CharField(allow_blank=True)  # Проверка на пустые строки
+    profile_picture = serializers.ImageField(allow_null=True)
+
+
+
