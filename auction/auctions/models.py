@@ -84,8 +84,8 @@ class Product(models.Model):
 
 class Auction(models.Model):
     AUCTION_TYPE_CHOICES = [
-        ('single', 'Single Product Auction'),  # Для одного продукта
-        ('multiple', 'Multiple Products Auction'),  # Для нескольких продуктов
+        ('single', 'Single Product Auction'),
+        ('multiple', 'Multiple Products Auction'),
     ]
     auction_type = models.CharField(max_length=20, choices=AUCTION_TYPE_CHOICES, default='single')
     product = models.ForeignKey(Product, on_delete=models.CASCADE, null=True, blank=True)
@@ -97,7 +97,15 @@ class Auction(models.Model):
     seller = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=True, blank=True, related_name='seller_auctions')
     buyer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='buyer_auctions')
     banner_image = models.ImageField(upload_to='auction_banners/', blank=True, null=True)
-    status = models.CharField(max_length=20, default='planned')  # Статусы могут быть: 'planned', 'active', 'finished'
+    status = models.CharField(max_length=20, default='planned')
+
+    def update_status(self):
+        now = datetime.timezone.now()
+        if self.start_time <= now <= self.end_time:
+            self.status = 'active'
+        elif now > self.end_time:
+            self.status = 'finished'
+        self.save()
 
     def __str__(self):
         if self.auction_type == 'single':

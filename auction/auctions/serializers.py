@@ -9,12 +9,13 @@ User = get_user_model()
 
 
 class ProductSerializer(serializers.ModelSerializer):
-    category = serializers.StringRelatedField()  # To show category name instead of ID
-    seller = serializers.StringRelatedField()  # To show seller's username instead of ID
+    category = serializers.PrimaryKeyRelatedField(queryset=Category.objects.all())  # Для связи по ID
+    seller = serializers.StringRelatedField(read_only=True)  # Для отображения имени продавца
 
     class Meta:
         model = Product
         fields = ['id', 'name', 'description', 'starting_price', 'is_active', 'category', 'image', 'seller', 'created_at']
+        read_only_fields = ['seller', 'created_at']
 
 
 class AuctionSerializer(serializers.ModelSerializer):
@@ -176,7 +177,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
         model = User
         fields = ['username', 'email', 'first_name', 'last_name', 'phone_number', 'profile_picture']
 
-    phone_number = serializers.CharField(allow_blank=True)  # Проверка на пустые строки
+    phone_number = serializers.CharField(allow_blank=True)
     profile_picture = serializers.ImageField(allow_null=True)
 
 
