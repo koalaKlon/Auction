@@ -19,26 +19,44 @@ class ProductSerializer(serializers.ModelSerializer):
 
 
 class AuctionSerializer(serializers.ModelSerializer):
-    product = ProductSerializer(required=False)
-    products = ProductSerializer(many=True, required=False)
+    product = ProductSerializer(required=False)  # Это для одного продукта
+    products = ProductSerializer(many=True, read_only=True)  # Это для нескольких продуктов
     auction_type_display = serializers.CharField(source='get_auction_type_display', read_only=True)
-    seller = serializers.StringRelatedField()  # Display seller's username
-    buyer = serializers.StringRelatedField()  # Display buyer's username, if any
-    starting_price = serializers.DecimalField(source='product.starting_price', max_digits=10, decimal_places=2, read_only=True)
+    seller = serializers.StringRelatedField()
+    buyer = serializers.StringRelatedField()
+    starting_price = serializers.DecimalField(
+        source='product.starting_price', max_digits=10, decimal_places=2, read_only=True
+    )
+    product_name = serializers.CharField(source='product.name', read_only=True)
 
     class Meta:
         model = Auction
-        fields = ['id', 'product', 'products', 'auction_type', 'auction_type_display',
-                  'current_bid', 'is_favorite', 'start_time', 'end_time', 'status', 'seller', 'buyer',
-                  'banner_image', 'starting_price']
-        read_only_fields = ['seller', 'buyer', 'auction_type_display', 'starting_price']
+        fields = [
+            'id', 'product', 'products', 'auction_type', 'auction_type_display',
+            'current_bid', 'is_favorite', 'start_time', 'end_time', 'status', 'seller', 'buyer',
+            'banner_image', 'starting_price', 'product_name'
+        ]
+        read_only_fields = ['seller', 'buyer', 'auction_type_display', 'starting_price', 'product_name']
 
-    def validate(self, data):
-        if data.get('auction_type') == 'multiple' and not data.get('products'):
-            raise serializers.ValidationError({
-                'products': "Products are required for multiple auctions."
-            })
-        return data
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+
+        # Получаем связанные продукты через промежуточную модель AuctionProduct
+        products = instance.related_products.all()
+
+        if products:
+            # Собираем имена продуктов
+            product_names = [product.name for product in products]
+            representation['product_name'] = ', '.join(product_names)
+
+            # Используем начальную ставку первого продукта
+            starting_price = products[0].starting_price if products[0].starting_price else 'Не установлена'
+            representation['starting_price'] = starting_price
+        else:
+            representation['product_name'] = 'Продукт не указан'
+            representation['starting_price'] = 'Не установлена'
+
+        return representation
 
     def create(self, validated_data):
         user = self.context['request'].user
@@ -46,6 +64,11 @@ class AuctionSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Authentication required to create an auction.")
 
         validated_data['seller'] = user
+
+        product_data = validated_data.pop('product', None)
+        if product_data:
+            product, created = Product.objects.get_or_create(**product_data)
+            validated_data['product'] = product
 
         products_data = validated_data.pop('products', None)
         auction = super().create(validated_data)
@@ -56,18 +79,6 @@ class AuctionSerializer(serializers.ModelSerializer):
                 auction.products.add(product)
 
         return auction
-
-    def update(self, instance, validated_data):
-        products_data = validated_data.pop('products', None)
-        instance = super().update(instance, validated_data)
-
-        if products_data:
-            instance.products.clear()
-            for product_data in products_data:
-                product, created = Product.objects.get_or_create(**product_data)
-                instance.products.add(product)
-
-        return instance
 
 
 class BidSerializer(serializers.ModelSerializer):

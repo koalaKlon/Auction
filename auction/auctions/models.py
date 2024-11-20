@@ -71,10 +71,11 @@ class Category(models.Model):
 class Product(models.Model):
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True, null=True)
-    category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name='products')
+    category = models.ForeignKey('Category', on_delete=models.CASCADE, related_name='products')
     image = models.ImageField(upload_to='product_images/', blank=True, null=True)
     seller = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='products')
     starting_price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
+    auctions = models.ManyToManyField('Auction', through='AuctionProduct', related_name='related_products')
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -88,8 +89,6 @@ class Auction(models.Model):
         ('multiple', 'Multiple Products Auction'),
     ]
     auction_type = models.CharField(max_length=20, choices=AUCTION_TYPE_CHOICES, default='single')
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, null=True, blank=True)
-    products = models.ManyToManyField(Product, blank=True, related_name='auctions')
     current_bid = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     is_favorite = models.BooleanField(default=False)
     start_time = models.DateTimeField(default=now)
@@ -108,9 +107,15 @@ class Auction(models.Model):
         self.save()
 
     def __str__(self):
-        if self.auction_type == 'single':
-            return f'Auction for {self.product.name}'
-        return f'Auction for multiple products'
+        return f'Auction ({self.get_auction_type_display()})'
+
+
+class AuctionProduct(models.Model):
+    auction = models.ForeignKey(Auction, on_delete=models.CASCADE)
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+
+    def __str__(self):
+        return f'{self.auction} - {self.product}'
 
 
 class Bid(models.Model):

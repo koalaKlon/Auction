@@ -1,11 +1,12 @@
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated, AllowAny
-
+from django.utils.timezone import make_aware
+from datetime import datetime
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.decorators import api_view, permission_classes
-from .models import Product, Auction, Rating, Category
+from .models import Product, Auction, Rating, Category, AuctionProduct
 from .serializers import ProductSerializer, AuctionSerializer, RegisterSerializer, LoginSerializer, \
     UserProfileSerializer, CategorySerializer
 
@@ -21,16 +22,10 @@ def product_list(request):
 @api_view(['GET', 'POST'])
 def auction_list(request):
     if request.method == 'GET':
-        auctions = Auction.objects.all()
+        # Используем prefetch_related для связи через AuctionProduct
+        auctions = Auction.objects.prefetch_related('related_products').all()
         serializer = AuctionSerializer(auctions, many=True)
         return Response(serializer.data)
-
-    elif request.method == 'POST':
-        serializer = AuctionSerializer(data=request.data, context={'request': request})
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['GET', 'PUT', 'DELETE'])
@@ -167,31 +162,41 @@ def rate_user(request, user_id):
 
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])  # Only authenticated users can create auctions
+@permission_classes([IsAuthenticated])
 def create_auction(request):
     user = request.user
     data = request.data
 
-    # Extract auction details
     auction_type = data.get('auction_type', 'single')
-    start_time = data.get('start_time')
-    end_time = data.get('end_time')
     status_field = data.get('status', 'planned')
 
+    try:
+        start_time = make_aware(datetime.strptime(data['start_time'], "%Y-%m-%dT%H:%M"))
+        end_time = make_aware(datetime.strptime(data['end_time'], "%Y-%m-%dT%H:%M"))
+    except KeyError:
+        return Response({'error': 'start_time and end_time are required'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Создание аукциона
+    auction = Auction.objects.create(
+        auction_type=auction_type,
+        seller=user,
+        start_time=start_time,
+        end_time=end_time,
+        status=status_field
+    )
+
+    # Работа с одним продуктом
     if auction_type == 'single':
-        # Check if product data exists for new product creation
         if 'name' in data and 'description' in data and 'startingPrice' in data:
-            # Проверяем наличие категории
             category_id = data.get('category')
             if not category_id:
                 return Response({'error': 'Category is required for creating a product'},
-                                status=status.HTTP_400_BAD_REQUEST)
+                                 status=status.HTTP_400_BAD_REQUEST)
             try:
                 category = Category.objects.get(id=category_id)
             except Category.DoesNotExist:
                 return Response({'error': 'Category not found'}, status=status.HTTP_404_NOT_FOUND)
 
-            # Создаем продукт
             product = Product.objects.create(
                 name=data['name'],
                 description=data['description'],
@@ -208,46 +213,50 @@ def create_auction(request):
             except Product.DoesNotExist:
                 return Response({'error': 'Product not found'}, status=status.HTTP_404_NOT_FOUND)
 
-        # Create the auction for the single product
-        auction = Auction.objects.create(
-            auction_type=auction_type,
-            product=product,
-            seller=user,
-            start_time=start_time,
-            end_time=end_time,
-            status=status_field
-        )
-    else:
-        # For multiple products, the logic remains the same
-        product_ids = data.get('products', [])
-        if not product_ids:
-            return Response({'error': 'Product IDs are required for multiple product auction'}, status=status.HTTP_400_BAD_REQUEST)
-        products = Product.objects.filter(id__in=product_ids)
+        # Связываем продукт с аукционом
+        AuctionProduct.objects.create(auction=auction, product=product)
 
-        if not products.exists():
-            return Response({'error': 'No valid products found'}, status=status.HTTP_404_NOT_FOUND)
+    else:  # Работа с несколькими продуктами
+        new_products_data = data.get('new_products', [])
+        created_products = []
 
-        auction = Auction.objects.create(
-            auction_type=auction_type,
-            seller=user,
-            start_time=start_time,
-            end_time=end_time,
-            status=status_field
-        )
-        auction.products.set(products)
+        for product_data in new_products_data:
+            if isinstance(product_data, dict):  # Если продукт передан в виде словаря, создаём его
+                category_id = product_data.get('category')
+                if not category_id:
+                    return Response({'error': 'Category is required for new product creation'},
+                                    status=status.HTTP_400_BAD_REQUEST)
+                try:
+                    category = Category.objects.get(id=category_id)
+                except Category.DoesNotExist:
+                    return Response({'error': f'Category with ID {category_id} not found'},
+                                    status=status.HTTP_404_NOT_FOUND)
+                product = Product.objects.create(
+                    name=product_data['name'],
+                    description=product_data['description'],
+                    starting_price=product_data['starting_price'],
+                    category=category,
+                    seller=user
+                )
+                created_products.append(product)
+            elif isinstance(product_data, int):  # Если передан ID продукта, добавляем его
+                try:
+                    product = Product.objects.get(id=product_data)
+                    created_products.append(product)
+                except Product.DoesNotExist:
+                    return Response({'error': f'Product with ID {product_data} not found'},
+                                    status=status.HTTP_404_NOT_FOUND)
 
-        # Return a success response
-    return Response(
-        {
-            'message': 'Auction created successfully',
-            'auction_id': auction.id,
-            'auction_type': auction.auction_type,
-            'start_time': auction.start_time,
-            'end_time': auction.end_time,
-            'status': auction.status,
-        },
-        status=status.HTTP_201_CREATED
-    )
+        # Проверка наличия продуктов для аукциона
+        if not created_products:
+            return Response({'error': 'No valid products found for the auction'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Создание связей между аукционом и продуктами
+        for product in created_products:
+            AuctionProduct.objects.create(auction=auction, product=product)
+
+    # Ответ успешного создания аукциона
+    return Response({'message': 'Auction created successfully', 'auction_id': auction.id}, status=status.HTTP_201_CREATED)
 
 
 @api_view(['POST'])
