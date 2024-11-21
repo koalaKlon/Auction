@@ -28,30 +28,34 @@ def auction_list(request):
         return Response(serializer.data)
 
 
-@api_view(['GET', 'PUT', 'DELETE'])
+@api_view(['GET'])
 def auction_detail(request, pk):
-    auction = get_object_or_404(Auction, pk=pk)
+    try:
+        auction = Auction.objects.get(pk=pk)
+    except Auction.DoesNotExist:
+        return Response({'error': 'Auction not found'}, status=status.HTTP_404_NOT_FOUND)
 
-    if request.method == 'GET':
-        serializer = AuctionSerializer(auction)
-        return Response(serializer.data)
+    # Получаем все связанные продукты через промежуточную модель
+    products = auction.related_products.all()
 
-    elif request.method == 'PUT':
-        if auction.seller != request.user:
-            return Response({'error': 'You are not the seller of this auction'}, status=status.HTTP_403_FORBIDDEN)
+    # Если аукцион многопродуктовый (multiple), сериализуем все продукты
+    if auction.auction_type == 'multiple' and products.exists():
+        products_data = ProductSerializer(products, many=True).data
+    else:
+        # Если аукцион одиночный, проверяем наличие продукта через промежуточную модель
+        products_data = None
+        if products.exists():
+            product = products.first()
+            products_data = ProductSerializer(product).data
 
-        serializer = AuctionSerializer(auction, data=request.data, context={'request': request})
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    # Создаем сериализатор для аукциона
+    serializer = AuctionSerializer(auction)
 
-    elif request.method == 'DELETE':
-        if auction.seller != request.user:
-            return Response({'error': 'You are not the seller of this auction'}, status=status.HTTP_403_FORBIDDEN)
+    # Обновляем сериализованные данные, добавляем информацию о продуктах
+    auction_data = serializer.data
+    auction_data['products'] = products_data  # Это поле будет содержать данные для нескольких товаров
 
-        auction.delete()
-        return Response({'message': 'Auction deleted'}, status=status.HTTP_204_NO_CONTENT)
+    return Response(auction_data)
 
 
 @api_view(['POST'])
@@ -83,25 +87,17 @@ def register(request):
 
 @api_view(['POST'])
 def login(request):
-    """Логин пользователя и получение токенов"""
-    if request.method == 'POST':
-        print("Request data:", request.data)  # Печатаем входящие данные запроса
+    serializer = LoginSerializer(data=request.data)
+    if serializer.is_valid():
+        user = serializer.validated_data['user']
+        refresh = RefreshToken.for_user(user)
 
-        serializer = LoginSerializer(data=request.data)
-
-        if serializer.is_valid():
-            user = serializer.validated_data['user']  # Получаем пользователя из сериализатора
-
-            refresh = RefreshToken.for_user(user)
-            access_token = refresh.access_token
-
-            return Response({
-                'refresh': str(refresh),
-                'access': str(access_token)
-            })
-
-        print("Serializer errors:", serializer.errors)  # Печатаем ошибки сериализатора
-        return Response({'error': 'Неверные данные для входа', 'details': serializer.errors}, status=400)
+        return Response({
+            'message': 'Login successful',
+            'access': str(refresh.access_token),
+            'refresh': str(refresh),
+        })
+    return Response({'error': 'Invalid credentials'}, status=400)
 
 
 @api_view(['GET'])
@@ -283,3 +279,25 @@ def get_categories(request):
     categories = Category.objects.all()
     serializer = CategorySerializer(categories, many=True)
     return Response(serializer.data)
+
+
+@api_view(['POST'])
+def refresh_token(request):
+    refresh_token = request.COOKIES.get('refresh_token')
+    if not refresh_token:
+        return Response({'error': 'Refresh token not found'}, status=400)
+
+    try:
+        refresh = RefreshToken(refresh_token)
+        access_token = refresh.access_token
+        response = Response({'access': str(access_token)})
+        response.set_cookie(
+            key='access_token',
+            value=str(access_token),
+            httponly=True,
+            secure=True,
+            samesite='Strict'
+        )
+        return response
+    except Exception as e:
+        return Response({'error': 'Invalid refresh token'}, status=400)
