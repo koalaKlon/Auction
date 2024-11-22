@@ -1,6 +1,6 @@
 from django.urls import path
 from .views import product_list, auction_list, auction_detail, register, login, profile, update_profile, rate_user, \
-    create_auction, create_product, get_categories, refresh_token
+    create_auction, create_product, get_categories, refresh_token, user_profile_view
 
 urlpatterns = [
     path('api/products/', product_list, name='product_list'),
@@ -11,6 +11,7 @@ urlpatterns = [
     path('api/register/', register, name='register'),
     path('api/login/', login, name='login'),
     path('api/profile/', profile, name='profile'),
+    path('api/users/<int:user_id>/profile/', user_profile_view, name='profile'),
     path('api/users/<int:user_id>/rate/', rate_user, name='rate_user'),
     path('api/profile/update/', update_profile, name='update_profile'),
     path('api/categories/', get_categories, name='get_categories'),

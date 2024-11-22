@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -5,10 +7,14 @@ from django.utils.timezone import make_aware
 from datetime import datetime
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, authentication_classes
+from django.contrib.auth import get_user_model
 from .models import Product, Auction, Rating, Category, AuctionProduct
 from .serializers import ProductSerializer, AuctionSerializer, RegisterSerializer, LoginSerializer, \
     UserProfileSerializer, CategorySerializer
+
+
+User = get_user_model()
 
 
 # API для получения списка продуктов
@@ -20,6 +26,8 @@ def product_list(request):
 
 
 @api_view(['GET', 'POST'])
+@permission_classes([AllowAny])
+@authentication_classes([])
 def auction_list(request):
     if request.method == 'GET':
         # Используем prefetch_related для связи через AuctionProduct
@@ -29,36 +37,47 @@ def auction_list(request):
 
 
 @api_view(['GET'])
+@permission_classes([AllowAny])
+@authentication_classes([])
 def auction_detail(request, pk):
     try:
-        auction = Auction.objects.get(pk=pk)
+        auction = Auction.objects.select_related('seller').prefetch_related('related_products').get(pk=pk)
     except Auction.DoesNotExist:
         return Response({'error': 'Auction not found'}, status=status.HTTP_404_NOT_FOUND)
 
-    # Получаем все связанные продукты через промежуточную модель
-    products = auction.related_products.all()
-
-    # Если аукцион многопродуктовый (multiple), сериализуем все продукты
-    if auction.auction_type == 'multiple' and products.exists():
-        products_data = ProductSerializer(products, many=True).data
+    # Определяем продукты в зависимости от типа аукциона
+    if auction.auction_type == 'multiple':
+        products_data = ProductSerializer(auction.related_products.all(), many=True).data
+        product_data = None
     else:
-        # Если аукцион одиночный, проверяем наличие продукта через промежуточную модель
+        product = auction.related_products.first()
+        product_data = ProductSerializer(product).data if product else None
         products_data = None
-        if products.exists():
-            product = products.first()
-            products_data = ProductSerializer(product).data
 
-    # Создаем сериализатор для аукциона
-    serializer = AuctionSerializer(auction)
+    auction_serializer = AuctionSerializer(auction)
 
-    # Обновляем сериализованные данные, добавляем информацию о продуктах
-    auction_data = serializer.data
-    auction_data['products'] = products_data  # Это поле будет содержать данные для нескольких товаров
+    # Собираем итоговые данные
+    auction_data = auction_serializer.data
 
+    # Добавляем данные продуктов в зависимости от типа аукциона
+    if auction.auction_type == 'multiple':
+        auction_data['products'] = products_data
+    else:
+        auction_data['product'] = product_data
+
+    # Приведение типов (например, Decimal → строка)
+    if isinstance(auction_data.get('starting_price'), Decimal):
+        auction_data['starting_price'] = str(auction_data['starting_price'])
+
+    print(auction_data)
     return Response(auction_data)
 
 
+
+
 @api_view(['POST'])
+@permission_classes([AllowAny])
+@authentication_classes([])
 def register(request):
     """Регистрирует нового пользователя и возвращает токены"""
     if request.method == 'POST':
@@ -81,11 +100,15 @@ def register(request):
                 "access": str(access_token)
             }, status=201)
 
-        # Если данные не валидны, возвращаем ошибки
+        # Если данные не валидны, выводим ошибки
+        print("Ошибка валидации:", serializer.errors)  # Добавлено логирование ошибок
         return Response(serializer.errors, status=400)
 
 
+
 @api_view(['POST'])
+@permission_classes([AllowAny])
+@authentication_classes([])
 def login(request):
     serializer = LoginSerializer(data=request.data)
     if serializer.is_valid():
@@ -274,7 +297,8 @@ def create_product(request):
 
 
 @api_view(['GET'])
-@permission_classes([AllowAny])  # Категории могут быть доступны всем
+@permission_classes([AllowAny])
+@authentication_classes([])
 def get_categories(request):
     categories = Category.objects.all()
     serializer = CategorySerializer(categories, many=True)
@@ -282,22 +306,33 @@ def get_categories(request):
 
 
 @api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def refresh_token(request):
-    refresh_token = request.COOKIES.get('refresh_token')
+    # Проверяем, есть ли refresh_token в запросе
+    refresh_token = request.data.get('refresh_token', None)
     if not refresh_token:
-        return Response({'error': 'Refresh token not found'}, status=400)
+        return Response({'error': 'Refresh token not provided'}, status=status.HTTP_400_BAD_REQUEST)
 
     try:
         refresh = RefreshToken(refresh_token)
         access_token = refresh.access_token
-        response = Response({'access': str(access_token)})
-        response.set_cookie(
-            key='access_token',
-            value=str(access_token),
-            httponly=True,
-            secure=True,
-            samesite='Strict'
-        )
-        return response
+        return Response({
+            'access_token': str(access_token),
+        }, status=status.HTTP_200_OK)
     except Exception as e:
-        return Response({'error': 'Invalid refresh token'}, status=400)
+        return Response({'error': 'Invalid refresh token'}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+@authentication_classes([])
+def user_profile_view(request, user_id):
+    try:
+        # Используем модель пользователя напрямую
+        user = User.objects.get(pk=user_id)
+    except User.DoesNotExist:
+        return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    # Сериализуем данные пользователя
+    serializer = UserProfileSerializer(user)
+    return Response(serializer.data)

@@ -3,9 +3,19 @@ from .models import Product, Auction, User, Rating, Category, Bid, Chat
 from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import get_user_model
+from rest_framework.reverse import reverse
 
 
 User = get_user_model()
+
+
+class UserProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'phone_number', 'profile_picture']
+
+    phone_number = serializers.CharField(allow_blank=True)
+    profile_picture = serializers.ImageField(allow_null=True)
 
 
 class ProductSerializer(serializers.ModelSerializer):
@@ -22,7 +32,7 @@ class AuctionSerializer(serializers.ModelSerializer):
     product = ProductSerializer(required=False)  # Это для одного продукта
     products = ProductSerializer(many=True, read_only=True)  # Это для нескольких продуктов
     auction_type_display = serializers.CharField(source='get_auction_type_display', read_only=True)
-    seller = serializers.StringRelatedField()
+    seller = UserProfileSerializer()  # Используем UserProfileSerializer для детальной информации
     buyer = serializers.StringRelatedField()
     starting_price = serializers.DecimalField(
         source='product.starting_price', max_digits=10, decimal_places=2, read_only=True
@@ -44,13 +54,13 @@ class AuctionSerializer(serializers.ModelSerializer):
         # Получаем связанные продукты через промежуточную модель AuctionProduct
         products = instance.related_products.all()
 
-        if products:
+        if products.exists():
             # Собираем имена продуктов
             product_names = [product.name for product in products]
             representation['product_name'] = ', '.join(product_names)
 
             # Используем начальную ставку первого продукта
-            starting_price = products[0].starting_price if products[0].starting_price else 'Не установлена'
+            starting_price = products.first().starting_price or 'Не установлена'
             representation['starting_price'] = starting_price
         else:
             representation['product_name'] = 'Продукт не указан'
@@ -124,11 +134,11 @@ def validate_username(value):
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
-    email = serializers.EmailField()  # Добавляем поле email
+    email = serializers.EmailField()  # Обязательное поле email
 
     class Meta:
         model = User
-        fields = ['username', 'password', 'email']  # Добавляем email в поля
+        fields = ['username', 'password', 'email']  # Включаем email в сериализатор
 
     def create(self, validated_data):
         try:
@@ -141,6 +151,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         except Exception as e:
             print("Ошибка при создании пользователя:", e)
             raise e  # Ретранслировать ошибку дальше
+
 
 
 class LoginSerializer(serializers.Serializer):
@@ -183,13 +194,7 @@ class TokenObtainPairSerializer(serializers.Serializer):
         }
 
 
-class UserProfileSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = User
-        fields = ['username', 'email', 'first_name', 'last_name', 'phone_number', 'profile_picture']
 
-    phone_number = serializers.CharField(allow_blank=True)
-    profile_picture = serializers.ImageField(allow_null=True)
 
 
 
