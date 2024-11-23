@@ -19,16 +19,15 @@ class User(AbstractUser):
     email = models.EmailField(unique=True)  # Добавление поля email
 
     def calculate_average_rating(self):
-        """Пересчитываем средний рейтинг пользователя."""
-        ratings = Rating.objects.filter(user=self)  # Получаем все рейтинги для данного пользователя
+        """Пересчитываем средний рейтинг пользователя на основе всех его рейтингов."""
+        ratings = Rating.objects.filter(rated_user=self)  # Учитываем все рейтинги для данного пользователя
         if ratings:
             total_rating = sum([rating.rating for rating in ratings])
             avg_rating = total_rating / len(ratings)
-            self.rating = avg_rating  # Обновляем рейтинг
-            self.save()
+            self.rating = round(avg_rating, 2)  # Обновляем поле rating с округлением до двух знаков
         else:
-            self.rating = 0  # Если нет рейтингов, ставим 0
-            self.save()
+            self.rating = 0  # Если нет рейтингов, устанавливаем 0
+        self.save()  # Сохраняем изменения в базе
 
     # Уникальные и осмысленные имена для связанных полей
     groups = models.ManyToManyField(

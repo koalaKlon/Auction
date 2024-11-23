@@ -2,6 +2,7 @@ from decimal import Decimal
 
 from django.shortcuts import get_object_or_404
 from rest_framework import status
+from rest_framework.parsers import JSONParser
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.utils.timezone import make_aware
 from datetime import datetime
@@ -328,11 +329,58 @@ def refresh_token(request):
 @authentication_classes([])
 def user_profile_view(request, user_id):
     try:
-        # Используем модель пользователя напрямую
         user = User.objects.get(pk=user_id)
+        profile_data = {
+            "id": user.id,
+            "username": user.username,
+            "rating": user.rating,  # Средний рейтинг пользователя
+            "role": user.role,
+            "email": user.email,
+            "phone_number": user.phone_number,
+        }
+        return Response(profile_data, status=status.HTTP_200_OK)
     except User.DoesNotExist:
-        return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+        return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
 
-    # Сериализуем данные пользователя
-    serializer = UserProfileSerializer(user)
-    return Response(serializer.data)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def rate_user(request, user_id):
+    try:
+        rated_user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return Response({"error": "Пользователь не найден"}, status=status.HTTP_404_NOT_FOUND)
+
+    # Запрет на выставление рейтинга самому себе
+    if rated_user.id == request.user.id:
+        return Response({"error": "Вы не можете оценивать себя"}, status=status.HTTP_400_BAD_REQUEST)
+
+    if request.method == 'POST':
+        rating_value = request.data.get('rating')
+        if rating_value is None or not (1 <= float(rating_value) <= 10):
+            return Response({"error": "Рейтинг должен быть числом от 1 до 10"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Проверяем, выставлял ли пользователь уже рейтинг
+        existing_rating = Rating.objects.filter(user=request.user, rated_user=rated_user).first()
+
+        if existing_rating:
+            # Обновляем существующий рейтинг
+            existing_rating.rating = rating_value
+            existing_rating.save()
+        else:
+            # Создаем новый рейтинг
+            Rating.objects.create(
+                user=request.user,
+                rated_user=rated_user,
+                rating=rating_value
+            )
+
+        # Пересчитываем средний рейтинг
+        rated_user.calculate_average_rating()
+
+        return Response({
+            "message": "Рейтинг успешно установлен",
+            "updated_rating": rated_user.rating
+        }, status=status.HTTP_200_OK)
+
+

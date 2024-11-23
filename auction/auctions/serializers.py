@@ -10,12 +10,15 @@ User = get_user_model()
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
+    rating = serializers.DecimalField(max_digits=3, decimal_places=2, read_only=True)
+
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'phone_number', 'profile_picture']
+        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'phone_number', 'profile_picture', 'rating']
 
     phone_number = serializers.CharField(allow_blank=True)
     profile_picture = serializers.ImageField(allow_null=True)
+
 
 
 class ProductSerializer(serializers.ModelSerializer):
