@@ -1,5 +1,5 @@
 from decimal import Decimal
-
+import jwt
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.parsers import JSONParser
@@ -26,7 +26,7 @@ def product_list(request):
     return Response(serializer.data)
 
 
-@api_view(['GET', 'POST'])
+@api_view(['GET'])
 @permission_classes([AllowAny])
 @authentication_classes([])
 def auction_list(request):
@@ -70,9 +70,64 @@ def auction_detail(request, pk):
     if isinstance(auction_data.get('starting_price'), Decimal):
         auction_data['starting_price'] = str(auction_data['starting_price'])
 
-    print(auction_data)
     return Response(auction_data)
 
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+@authentication_classes([])
+def product_detail(request, pk):
+    try:
+        # Fetch the product by its primary key
+        product = Product.objects.get(pk=pk)
+    except Product.DoesNotExist:
+        return Response({'detail': 'Product not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    # Serialize the product data
+    serializer = ProductSerializer(product)
+
+    # Return the serialized data in the response
+    return Response(serializer.data)
+
+
+@api_view(['PUT'])
+@permission_classes([IsAuthenticated])
+def update_auction(request, pk):
+    try:
+        auction = Auction.objects.get(pk=pk)
+    except Auction.DoesNotExist:
+        return Response({'error': 'Auction not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    # Проверка, является ли текущий пользователь владельцем аукциона
+    if auction.seller != request.user:
+        return Response({'error': 'You are not the seller of this auction'}, status=status.HTTP_403_FORBIDDEN)
+
+    serializer = AuctionSerializer(auction, data=request.data, partial=True)
+
+    if serializer.is_valid():
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['PUT'])
+@permission_classes([IsAuthenticated])
+def update_product(request, pk):
+    try:
+        product = Product.objects.get(pk=pk)
+    except Product.DoesNotExist:
+        return Response({'error': 'Product not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    # Проверка, является ли текущий пользователь владельцем продукта
+    if product.seller != request.user:
+        return Response({'error': 'You are not the seller of this product'}, status=status.HTTP_403_FORBIDDEN)
+
+    serializer = ProductSerializer(product, data=request.data, partial=True)
+
+    if serializer.is_valid():
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 
@@ -101,10 +156,7 @@ def register(request):
                 "access": str(access_token)
             }, status=201)
 
-        # Если данные не валидны, выводим ошибки
-        print("Ошибка валидации:", serializer.errors)  # Добавлено логирование ошибок
         return Response(serializer.errors, status=400)
-
 
 
 @api_view(['POST'])
@@ -125,24 +177,84 @@ def login(request):
 
 
 @api_view(['GET'])
-def profile(request):
+def current_user(request):
     """Возвращает информацию о текущем пользователе"""
     user = request.user  # Получаем текущего аутентифицированного пользователя
-    profile_data = {
+    current_user_data = {
+        'id': user.id,
         'username': user.username,
         'email': user.email,
         'first_name': user.first_name,
         'last_name': user.last_name,
-        'phone_number': user.phone_number,
+    }
+    return Response(current_user_data)
+
+@api_view(['GET'])
+def is_favorite(request, pk):
+    """Проверяет, находится ли аукцион в избранном текущего пользователя"""
+    user = request.user
+    try:
+        auction = Auction.objects.get(pk=pk)
+        is_favorite = auction in user.favorite_auctions.all()
+        return Response({'is_favorite': is_favorite}, status=200)
+    except Auction.DoesNotExist:
+        return Response({'error': 'Аукцион не найден'}, status=404)
+
+
+@api_view(['DELETE'])
+def remove_from_favorites(request, pk):
+    """Удаляет аукцион из избранного текущего пользователя"""
+    user = request.user
+    try:
+        auction = Auction.objects.get(pk=pk)
+        if auction in user.favorite_auctions.all():
+            user.favorite_auctions.remove(auction)
+            return Response({'message': 'Аукцион удален из избранного'}, status=200)
+        else:
+            return Response({'error': 'Аукцион отсутствует в избранном'}, status=404)
+    except Auction.DoesNotExist:
+        return Response({'error': 'Аукцион не найден'}, status=404)
+
+
+
+@api_view(['POST'])
+def add_to_favorites(request, pk):
+    """Добавляет аукцион в избранное текущего пользователя"""
+    user = request.user
+    try:
+        auction = Auction.objects.get(pk=pk)
+        user.favorite_auctions.add(auction)
+        return Response({'message': 'Аукцион добавлен в избранное'}, status=200)
+    except Auction.DoesNotExist:
+        return Response({'error': 'Аукцион не найден'}, status=404)
+
+
+@api_view(['GET'])
+def profile(request):
+    """Возвращает информацию о текущем пользователе и его аукционах"""
+    user = request.user  # Получаем текущего аутентифицированного пользователя
+
+    # Информация о пользователе
+    profile_data = {
+        'id': user.id,
+        'username': user.username,
+        'email': user.email,
+        'first_name': user.first_name,
+        'last_name': user.last_name,
+        'phone_number': getattr(user, 'phone_number', None),
+        'rating': getattr(user, 'rating', 0),
+        'profile_picture': user.profile_picture.url if hasattr(user, 'profile_picture') and user.profile_picture else None,
+        'favorites': list(user.favorite_auctions.values('id', 'auction_type', 'status', 'banner_image')),
     }
 
-    # Добавляем profile_picture только если оно существует
-    if user.profile_picture:
-        profile_data['profile_picture'] = user.profile_picture.url
-    else:
-        profile_data['profile_picture'] = None
+    # Получаем аукционы, созданные пользователем
+    auctions = Auction.objects.filter(seller=user).values(
+        'id', 'auction_type', 'start_time', 'end_time', 'banner_image', 'status'
+    )
+    profile_data['auctions'] = list(auctions)
 
     return Response(profile_data)
+
 
 
 @api_view(['PUT'])
@@ -152,7 +264,6 @@ def update_profile(request):
 
     if serializer.is_valid():
         user = serializer.save()  # Сохраняем данные
-        print("Updated user:", user)  # Логирование данных после сохранения
         return Response(serializer.data)  # Возвращаем обновленные данные
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -330,17 +441,31 @@ def refresh_token(request):
 def user_profile_view(request, user_id):
     try:
         user = User.objects.get(pk=user_id)
+        auctions = Auction.objects.filter(seller=user)  # Получаем аукционы пользователя
+        auctions_data = [
+            {
+                "id": auction.id,
+                "auction_type": auction.auction_type,
+                "start_time": auction.start_time,
+                "end_time": auction.end_time,
+                "banner_image": auction.banner_image.url if auction.banner_image else None,
+                "status": auction.status,
+            }
+            for auction in auctions
+        ]
+
         profile_data = {
             "id": user.id,
             "username": user.username,
-            "rating": user.rating,  # Средний рейтинг пользователя
-            "role": user.role,
+            "rating": user.rating,
             "email": user.email,
             "phone_number": user.phone_number,
+            "auctions": auctions_data,  # Добавляем аукционы в ответ
         }
         return Response(profile_data, status=status.HTTP_200_OK)
     except User.DoesNotExist:
         return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+
 
 
 @api_view(['POST'])
@@ -359,7 +484,6 @@ def rate_user(request, user_id):
         rating_value = request.data.get('rating')
         if rating_value is None or not (1 <= float(rating_value) <= 10):
             return Response({"error": "Рейтинг должен быть числом от 1 до 10"}, status=status.HTTP_400_BAD_REQUEST)
-
         # Проверяем, выставлял ли пользователь уже рейтинг
         existing_rating = Rating.objects.filter(user=request.user, rated_user=rated_user).first()
 

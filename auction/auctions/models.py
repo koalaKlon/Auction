@@ -13,10 +13,11 @@ class User(AbstractUser):
     ]
     role = models.CharField(max_length=10, choices=ROLE_CHOICES, default='user')
     phone_number = models.CharField(max_length=15, blank=True, null=True)
-    rating = models.DecimalField(max_digits=3, decimal_places=2, default=0)
+    rating = models.DecimalField(max_digits=4, decimal_places=2, default=0)
     is_active = models.BooleanField(default=True)
     profile_picture = models.ImageField(upload_to='user_profiles/', blank=True, null=True)
     email = models.EmailField(unique=True)  # Добавление поля email
+    favorite_auctions = models.ManyToManyField('Auction', related_name='favorited_by', blank=True)
 
     def calculate_average_rating(self):
         """Пересчитываем средний рейтинг пользователя на основе всех его рейтингов."""
@@ -48,7 +49,7 @@ class User(AbstractUser):
 class Rating(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='given_ratings')
     rated_user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='received_ratings', null=True)
-    rating = models.DecimalField(max_digits=2, decimal_places=1)
+    rating = models.DecimalField(max_digits=3, decimal_places=1)
     comment = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

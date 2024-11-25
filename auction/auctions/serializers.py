@@ -1,3 +1,5 @@
+from decimal import InvalidOperation, Decimal
+
 from rest_framework import serializers
 from .models import Product, Auction, User, Rating, Category, Bid, Chat
 from django.contrib.auth import authenticate
@@ -20,15 +22,14 @@ class UserProfileSerializer(serializers.ModelSerializer):
     profile_picture = serializers.ImageField(allow_null=True)
 
 
-
 class ProductSerializer(serializers.ModelSerializer):
     category = serializers.PrimaryKeyRelatedField(queryset=Category.objects.all())  # Для связи по ID
     seller = serializers.StringRelatedField(read_only=True)  # Для отображения имени продавца
 
     class Meta:
         model = Product
-        fields = ['id', 'name', 'description', 'starting_price', 'is_active', 'category', 'image', 'seller', 'created_at']
-        read_only_fields = ['seller', 'created_at']
+        fields = ['id', 'name', 'description', 'starting_price', 'is_active', 'category', 'image', 'seller', 'created_at', 'auctions']
+        read_only_fields = ['seller', 'created_at', 'auctions']
 
 
 class AuctionSerializer(serializers.ModelSerializer):
@@ -58,13 +59,18 @@ class AuctionSerializer(serializers.ModelSerializer):
         products = instance.related_products.all()
 
         if products.exists():
-            # Собираем имена продуктов
             product_names = [product.name for product in products]
             representation['product_name'] = ', '.join(product_names)
 
-            # Используем начальную ставку первого продукта
-            starting_price = products.first().starting_price or 'Не установлена'
-            representation['starting_price'] = starting_price
+            # Безопасное преобразование в Decimal
+            try:
+                starting_price = products.first().starting_price
+                if starting_price is None:
+                    representation['starting_price'] = 'Не установлена'
+                else:
+                    representation['starting_price'] = Decimal(starting_price)
+            except InvalidOperation:
+                representation['starting_price'] = 'Некорректное значение'
         else:
             representation['product_name'] = 'Продукт не указан'
             representation['starting_price'] = 'Не установлена'
