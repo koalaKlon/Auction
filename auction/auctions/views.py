@@ -1,8 +1,6 @@
 from decimal import Decimal
-import jwt
-from django.shortcuts import get_object_or_404
+from django.db.models import Q
 from rest_framework import status
-from rest_framework.parsers import JSONParser
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.utils.timezone import make_aware
 from datetime import datetime
@@ -30,11 +28,34 @@ def product_list(request):
 @permission_classes([AllowAny])
 @authentication_classes([])
 def auction_list(request):
-    if request.method == 'GET':
-        # Используем prefetch_related для связи через AuctionProduct
-        auctions = Auction.objects.prefetch_related('related_products').all()
-        serializer = AuctionSerializer(auctions, many=True)
-        return Response(serializer.data)
+    category = request.query_params.get('category')  # Фильтрация по категории
+    auction_type = request.query_params.get('type')  # Фильтрация по типу аукциона
+    search = request.query_params.get('search')  # Поиск по имени товара
+    sort_by = request.query_params.get('sort_by', 'start_time')  # Сортировка по дате начала по умолчанию
+
+    # Базовый QuerySet
+    auctions = Auction.objects.all()
+
+    # Фильтрация по категории (если указано)
+    if category:
+        auctions = auctions.filter(related_products__category__id=category)
+
+    # Фильтрация по типу аукциона
+    if auction_type:
+        auctions = auctions.filter(auction_type=auction_type)
+
+    # Поиск по имени товара
+    if search:
+        auctions = auctions.filter(
+            Q(related_products__name__icontains=search)
+        ).distinct()
+
+    # Сортировка
+    auctions = auctions.order_by(sort_by)
+
+    # Сериализация и возвращение результата
+    serializer = AuctionSerializer(auctions, many=True)
+    return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 @api_view(['GET'])
@@ -202,6 +223,7 @@ def is_favorite(request, pk):
 
 
 @api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
 def remove_from_favorites(request, pk):
     """Удаляет аукцион из избранного текущего пользователя"""
     user = request.user
@@ -218,6 +240,7 @@ def remove_from_favorites(request, pk):
 
 
 @api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def add_to_favorites(request, pk):
     """Добавляет аукцион в избранное текущего пользователя"""
     user = request.user
@@ -230,6 +253,7 @@ def add_to_favorites(request, pk):
 
 
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def profile(request):
     """Возвращает информацию о текущем пользователе и его аукционах"""
     user = request.user  # Получаем текущего аутентифицированного пользователя
@@ -258,6 +282,7 @@ def profile(request):
 
 
 @api_view(['PUT'])
+@permission_classes([IsAuthenticated])
 def update_profile(request):
     user = request.user
     serializer = UserProfileSerializer(user, data=request.data, partial=True)
@@ -269,6 +294,7 @@ def update_profile(request):
 
 
 @api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def rate_user(request, user_id):
     """Выставить рейтинг другому пользователю."""
     if not request.user.is_authenticated:
