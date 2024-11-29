@@ -36,6 +36,8 @@ class AuctionSerializer(serializers.ModelSerializer):
     product = ProductSerializer(required=False)  # Это для одного продукта
     products = ProductSerializer(many=True, read_only=True)  # Это для нескольких продуктов
     auction_type_display = serializers.CharField(source='get_auction_type_display', read_only=True)
+    start_time = serializers.DateTimeField(format='%Y-%m-%dT%H:%M')
+    end_time = serializers.DateTimeField(format='%Y-%m-%dT%H:%M')  # Пример формата
     seller = UserProfileSerializer()  # Используем UserProfileSerializer для детальной информации
     buyer = serializers.StringRelatedField()
     starting_price = serializers.DecimalField(

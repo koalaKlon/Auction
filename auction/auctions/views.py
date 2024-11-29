@@ -1,5 +1,6 @@
 from decimal import Decimal
 from django.db.models import Q
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.utils.timezone import make_aware
@@ -8,9 +9,11 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from django.contrib.auth import get_user_model
-from .models import Product, Auction, Rating, Category, AuctionProduct
+from .models import Product, Auction, Rating, Category, AuctionProduct, Bid
 from .serializers import ProductSerializer, AuctionSerializer, RegisterSerializer, LoginSerializer, \
     UserProfileSerializer, CategorySerializer
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
 
 
 User = get_user_model()
@@ -81,7 +84,9 @@ def auction_detail(request, pk):
     # Собираем итоговые данные
     auction_data = auction_serializer.data
 
-    # Добавляем данные продуктов в зависимости от типа аукциона
+    if auction.status == 'finished':
+        auction_data['winner'] = auction.buyer.username if auction.buyer else None
+
     if auction.auction_type == 'multiple':
         auction_data['products'] = products_data
     else:
@@ -533,4 +538,48 @@ def rate_user(request, user_id):
             "updated_rating": rated_user.rating
         }, status=status.HTTP_200_OK)
 
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def auction_status(request):
+    auctions = Auction.objects.filter(start_time__lte=timezone.now())
+    for auction in auctions:
+        auction.update_status()
+    data = AuctionSerializer(auctions, many=True).data
+    return Response(data, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+def place_bid(request, pk):
+    try:
+        auction = Auction.objects.get(pk=pk, status='active')
+        buyer = request.user
+        amount = request.data.get('amount')
+
+        if amount is None or float(amount) <= (auction.current_bid or 0):
+            return Response({"error": "Ставка должна быть больше текущей!"}, status=status.HTTP_400_BAD_REQUEST)
+
+        auction.place_bid(buyer, float(amount))
+
+        # Отправляем уведомление через WebSocket
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            f'auction_{pk}',
+            {
+                'type': 'auction_update',
+                'message': {
+                    "current_bid": auction.current_bid,
+                    "current_leader": buyer.username,
+                }
+            }
+        )
+
+        return Response({
+            "message": "Ставка успешно принята!",
+            "current_bid": auction.current_bid,
+            "current_leader": buyer.username,
+        })
+
+    except Auction.DoesNotExist:
+        return Response({"error": "Аукцион не найден или завершён."}, status=status.HTTP_404_NOT_FOUND)
 

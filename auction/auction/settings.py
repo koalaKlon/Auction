@@ -28,6 +28,7 @@ DEBUG = True
 ALLOWED_HOSTS = []
 
 
+
 # Application definition
 
 INSTALLED_APPS = [
@@ -41,7 +42,9 @@ INSTALLED_APPS = [
     'rest_framework.authtoken',
     'corsheaders',
     'auctions',
+    'channels',
 ]
+
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -76,13 +79,21 @@ TEMPLATES = [
         },
     },
 ]
-
+ASGI_APPLICATION = 'auction.asgi.application'
 WSGI_APPLICATION = 'auction.wsgi.application'
 
 AUTH_USER_MODEL = 'auctions.User'
 # Database
-# https://docs.djangoproject.com/en/5.1/ref/settings/#databases
-
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels.layers.InMemoryChannelLayer',  # Для локального тестирования
+        # Для продакшена используйте Redis:
+        # 'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        # 'CONFIG': {
+        #     "hosts": [('localhost', 6379)],
+        # },
+    },
+}
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
@@ -137,7 +148,7 @@ AUTHENTICATION_BACKENDS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Europe/Moscow'
 
 USE_I18N = True
 

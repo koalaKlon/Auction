@@ -2,6 +2,8 @@ import datetime
 from django.db import models
 from django.conf import settings
 from django.contrib.auth.models import AbstractUser
+from django.utils import timezone
+
 from django.utils.timezone import now
 
 
@@ -92,19 +94,36 @@ class Auction(models.Model):
     current_bid = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     is_favorite = models.BooleanField(default=False)
     start_time = models.DateTimeField(default=now)
-    end_time = models.DateTimeField(default=now() + datetime.timedelta(days=7))
+    end_time = models.DateTimeField(default=now(), null=True, blank=True)
     seller = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=True, blank=True, related_name='seller_auctions')
     buyer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='buyer_auctions')
     banner_image = models.ImageField(upload_to='auction_banners/', blank=True, null=True)
     status = models.CharField(max_length=20, default='planned')
 
     def update_status(self):
-        now = datetime.timezone.now()
-        if self.start_time <= now <= self.end_time:
+        current_time = timezone.now()  # Получаем текущее время с учетом часового пояса
+        if current_time < self.start_time:
+            self.status = 'planned'
+            self.save()
+        elif self.start_time <= current_time <= self.end_time:
             self.status = 'active'
-        elif now > self.end_time:
+            self.save()
+        elif current_time > self.end_time:
             self.status = 'finished'
-        self.save()
+            self.save()
+
+    def place_bid(self, buyer, amount):
+        if amount > (self.current_bid or 0):
+            self.current_bid = amount
+            self.buyer = buyer
+            self.end_time = now() + datetime.timedelta(seconds=10)
+            self.save()
+
+    def check_if_finished(self):
+        if now() > self.end_time:
+            self.status = 'finished'
+            self.end_time = now()
+            self.save()
 
     def __str__(self):
         return f'Auction ({self.get_auction_type_display()})'
