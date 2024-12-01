@@ -103,12 +103,11 @@ class AuctionSerializer(serializers.ModelSerializer):
 
 
 class BidSerializer(serializers.ModelSerializer):
-    auction = AuctionSerializer()
-    buyer = serializers.StringRelatedField()  # Display buyer's username instead of ID
+    buyer_username = serializers.CharField(source='buyer.username', read_only=True)
 
     class Meta:
         model = Bid
-        fields = ['id', 'auction', 'buyer', 'amount', 'timestamp', 'status']
+        fields = ['id', 'amount', 'timestamp', 'status', 'buyer_username']
 
 
 class ChatSerializer(serializers.ModelSerializer):

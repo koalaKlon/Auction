@@ -1,10 +1,10 @@
 from django.urls import path
 from .views import product_list, auction_list, auction_detail, register, login, profile, update_profile, rate_user, \
     create_auction, create_product, get_categories, refresh_token, user_profile_view, update_auction, update_product, \
-    current_user, product_detail, add_to_favorites, remove_from_favorites, is_favorite, auction_status, place_bid
+    current_user, product_detail, add_to_favorites, remove_from_favorites, is_favorite, auction_status, place_bid, \
+    change_user_role
 
 urlpatterns = [
-
     path('api/products/', product_list, name='product_list'),
     path('api/create-product/', create_product, name='create_product'),
     path('api/product/<int:pk>/update/', update_product, name='update_product'),
@@ -18,6 +18,7 @@ urlpatterns = [
     path('api/auction/<int:pk>/is_favorite/', is_favorite, name='is_favorite'),
     path('api/auction/<int:pk>/bid/', place_bid, name='place_bid'),
     path('api/auction/status/', auction_status, name='auction_status'),
+    path('api/users/change-role/', change_user_role, name='change_role'),
     path('api/register/', register, name='register'),
     path('api/login/', login, name='login'),
     path('api/current_user/', current_user, name='current_user'),

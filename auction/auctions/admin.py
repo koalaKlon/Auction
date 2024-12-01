@@ -90,12 +90,29 @@ class CategoryAdmin(admin.ModelAdmin):
 
 @admin.register(User)
 class UserAdmin(admin.ModelAdmin):
-    list_display = ('id', 'username', 'email', 'role', 'rating', 'is_active', 'phone_number')
-    search_fields = ('username', 'email', 'phone_number')
+    list_display = ('username', 'email', 'role', 'is_active', 'is_blocked', 'phone_number', 'rating', 'profile_picture')
     list_filter = ('role', 'is_active')
-    ordering = ('-id',)
-    fields = ('username', 'email', 'role', 'phone_number', 'rating', 'profile_picture', 'is_active')
-    actions = ['delete_selected']
+    search_fields = ('username', 'email', 'phone_number')
+
+    actions = ['block_users', 'unblock_users']  # Действия для блокировки и разблокировки пользователей
+
+    def is_blocked(self, obj):
+        return obj.role == 'blocked'
+    is_blocked.boolean = True
+    is_blocked.short_description = 'Blocked'
+
+    def block_users(self, request, queryset):
+        """Блокировка выбранных пользователей."""
+        queryset.update(role='blocked', is_active=False)
+        self.message_user(request, "Пользователи заблокированы.")
+    block_users.short_description = "Заблокировать выбранных пользователей"
+
+    def unblock_users(self, request, queryset):
+        """Разблокировка выбранных пользователей."""
+        queryset.update(role='user', is_active=True)
+        self.message_user(request, "Пользователи разблокированы.")
+    unblock_users.short_description = "Разблокировать выбранных пользователей"
+
 
 
 @admin.register(Rating)
@@ -109,9 +126,8 @@ class RatingAdmin(admin.ModelAdmin):
 
 @admin.register(Bid)
 class BidAdmin(admin.ModelAdmin):
-    list_display = ('id', 'auction', 'buyer', 'amount', 'timestamp', 'status')
+    list_display = ('id', 'auction', 'buyer', 'amount', 'timestamp')
     search_fields = ('auction__id', 'buyer__username')
-    list_filter = ('status', 'timestamp')
     ordering = ('-timestamp',)
     actions = ['delete_selected']
 

@@ -11,7 +11,7 @@ from rest_framework.decorators import api_view, permission_classes, authenticati
 from django.contrib.auth import get_user_model
 from .models import Product, Auction, Rating, Category, AuctionProduct, Bid
 from .serializers import ProductSerializer, AuctionSerializer, RegisterSerializer, LoginSerializer, \
-    UserProfileSerializer, CategorySerializer
+    UserProfileSerializer, CategorySerializer, BidSerializer
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 
@@ -80,12 +80,13 @@ def auction_detail(request, pk):
         products_data = None
 
     auction_serializer = AuctionSerializer(auction)
-
-    # Собираем итоговые данные
     auction_data = auction_serializer.data
 
     if auction.status == 'finished':
         auction_data['winner'] = auction.buyer.username if auction.buyer else None
+        bids = Bid.objects.filter(auction=auction).order_by('-amount')  # Все ставки на аукцион
+        print(bids)
+        auction_data['all_bids'] = BidSerializer(bids, many=True).data
 
     if auction.auction_type == 'multiple':
         auction_data['products'] = products_data
@@ -204,16 +205,31 @@ def login(request):
 
 @api_view(['GET'])
 def current_user(request):
-    """Возвращает информацию о текущем пользователе"""
-    user = request.user  # Получаем текущего аутентифицированного пользователя
-    current_user_data = {
-        'id': user.id,
-        'username': user.username,
-        'email': user.email,
-        'first_name': user.first_name,
-        'last_name': user.last_name,
-    }
-    return Response(current_user_data)
+    """Возвращает информацию о текущем пользователе по никнейму и его роль"""
+    if not request.user.is_authenticated:
+        return Response({'error': 'User not authenticated'},
+                        status=401)  # Возвращаем ошибку, если пользователь не авторизован
+
+    user = request.user  # Текущий аутентифицированный пользователь
+
+    try:
+        # Получаем пользователя по никнейму (username)
+        user_data = User.objects.get(username=user.username)
+
+        # Возвращаем данные пользователя вместе с его ролью
+        current_user_data = {
+            'id': user_data.id,
+            'username': user_data.username,
+            'email': user_data.email,
+            'first_name': user_data.first_name,
+            'last_name': user_data.last_name,
+            'role': user_data.role,  # Допустим, поле 'role' существует в модели пользователя
+        }
+        return Response(current_user_data)
+
+    except User.DoesNotExist:
+        return Response({'error': 'User not found'}, status=404)
+
 
 @api_view(['GET'])
 def is_favorite(request, pk):
@@ -260,10 +276,30 @@ def add_to_favorites(request, pk):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def profile(request):
-    """Возвращает информацию о текущем пользователе и его аукционах"""
-    user = request.user  # Получаем текущего аутентифицированного пользователя
+    """Возвращает информацию о текущем пользователе и его активности"""
+    user = request.user
 
-    # Информация о пользователе
+    # Получаем все ставки пользователя
+    participated_bids = Bid.objects.filter(buyer=user).distinct()
+
+    auctions_with_result = []
+
+    for bid in participated_bids:
+        auction = bid.auction
+        # Проверяем, был ли пользователь победителем
+        is_winner = auction.buyer == user
+        # Добавляем информацию о ставке
+        auctions_with_result.append({
+            'id': auction.id,
+            'auction_type': auction.auction_type,
+            'start_time': auction.start_time,
+            'end_time': auction.end_time,
+            'banner_image': auction.banner_image.url if auction.banner_image else None,
+            'status': auction.status,
+            'is_winner': is_winner,  # Добавляем поле для результата (выиграл или нет)
+            'buyer__username': auction.buyer.username if auction.buyer else None,
+        })
+
     profile_data = {
         'id': user.id,
         'username': user.username,
@@ -272,15 +308,15 @@ def profile(request):
         'last_name': user.last_name,
         'phone_number': getattr(user, 'phone_number', None),
         'rating': getattr(user, 'rating', 0),
-        'profile_picture': user.profile_picture.url if hasattr(user, 'profile_picture') and user.profile_picture else None,
         'favorites': list(user.favorite_auctions.values('id', 'auction_type', 'status', 'banner_image')),
+        'auctions': list(Auction.objects.filter(seller=user).values(
+            'id', 'auction_type', 'start_time', 'end_time', 'banner_image', 'status'
+        )),
+        'participated_auctions': auctions_with_result,  # Добавляем аукционы с результатами
+        'bids_history': list(Bid.objects.filter(buyer=user).values(
+            'id', 'auction_id', 'auction__auction_type', 'amount', 'timestamp', 'status'
+        ).order_by('-timestamp')),
     }
-
-    # Получаем аукционы, созданные пользователем
-    auctions = Auction.objects.filter(seller=user).values(
-        'id', 'auction_type', 'start_time', 'end_time', 'banner_image', 'status'
-    )
-    profile_data['auctions'] = list(auctions)
 
     return Response(profile_data)
 
@@ -550,16 +586,32 @@ def auction_status(request):
 
 
 @api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def place_bid(request, pk):
     try:
         auction = Auction.objects.get(pk=pk, status='active')
         buyer = request.user
         amount = request.data.get('amount')
 
-        if amount is None or float(amount) <= (auction.current_bid or 0):
+        # Проверяем, что сумма ставки передана и больше текущей
+        if amount is None or Decimal(amount) <= (auction.current_bid or Decimal(0)):
             return Response({"error": "Ставка должна быть больше текущей!"}, status=status.HTTP_400_BAD_REQUEST)
 
-        auction.place_bid(buyer, float(amount))
+        # Преобразуем сумму в Decimal
+        amount = Decimal(amount)
+
+        # Обновляем текущую ставку в аукционе
+        auction.place_bid(buyer, amount)
+
+        # Создаём запись в таблице Bid
+        bid = Bid.objects.create(
+            auction=auction,
+            buyer=buyer,
+            amount=amount,
+        )
+
+        # Находим нового лидера
+        current_leader = buyer.username
 
         # Отправляем уведомление через WebSocket
         channel_layer = get_channel_layer()
@@ -568,8 +620,8 @@ def place_bid(request, pk):
             {
                 'type': 'auction_update',
                 'message': {
-                    "current_bid": auction.current_bid,
-                    "current_leader": buyer.username,
+                    "current_bid": str(auction.current_bid),
+                    "current_leader": current_leader,
                 }
             }
         )
@@ -577,9 +629,31 @@ def place_bid(request, pk):
         return Response({
             "message": "Ставка успешно принята!",
             "current_bid": auction.current_bid,
-            "current_leader": buyer.username,
+            "current_leader": current_leader,
+            "bid_id": bid.id,
         })
 
     except Auction.DoesNotExist:
         return Response({"error": "Аукцион не найден или завершён."}, status=status.HTTP_404_NOT_FOUND)
+    except ValueError:
+        return Response({"error": "Некорректная сумма ставки."}, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def change_user_role(request):
+    user = request.user  # Получаем текущего авторизованного пользователя
+    current_role = user.role  # Предполагается, что в модели есть поле role
+
+    if current_role == 'user':
+        user.role = 'seller'  # Меняем роль на продавца
+    elif current_role == 'seller':
+        user.role = 'user'
+    else:
+        return Response({'error': 'Invalid role change'}, status=status.HTTP_400_BAD_REQUEST)
+
+    user.save()  # Сохраняем изменения в базе данных
+    return Response({'message': f'Role changed to {user.role}'})
+
 

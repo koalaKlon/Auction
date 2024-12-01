@@ -79,21 +79,19 @@ TEMPLATES = [
         },
     },
 ]
-ASGI_APPLICATION = 'auction.asgi.application'
+
+ASGI_APPLICATION = "auction.asgi.application"
 WSGI_APPLICATION = 'auction.wsgi.application'
 
 AUTH_USER_MODEL = 'auctions.User'
+
 # Database
 CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels.layers.InMemoryChannelLayer',  # Для локального тестирования
-        # Для продакшена используйте Redis:
-        # 'BACKEND': 'channels_redis.core.RedisChannelLayer',
-        # 'CONFIG': {
-        #     "hosts": [('localhost', 6379)],
-        # },
     },
 }
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
