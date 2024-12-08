@@ -1,5 +1,6 @@
 from decimal import Decimal
 from django.db.models import Q, Avg
+from django.http import JsonResponse
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
@@ -9,10 +10,10 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from django.contrib.auth import get_user_model
-from .models import Product, Auction, Rating, Category, AuctionProduct, Bid
+from .models import Product, Auction, Rating, Category, AuctionProduct, Bid, Chat
 from .serializers import ProductSerializer, AuctionSerializer, RegisterSerializer, LoginSerializer, \
-    UserProfileSerializer, CategorySerializer, BidSerializer
-from channels.layers import get_channel_layer
+    UserProfileSerializer, CategorySerializer, BidSerializer, ChatSerializer
+from channels.layers import get_channel_layer, channel_layers
 from asgiref.sync import async_to_sync
 
 
@@ -409,13 +410,40 @@ def create_auction(request):
     if auction_type == 'single':
         product_data = data.get('product')
         if not product_data:
-            return Response({'error': 'Product details are required'}, status=status.HTTP_400_BAD_REQUEST)
+            # Обработка нового продукта для одиночного типа
+            new_product_data = {
+                'name': data.get('new_product_name'),
+                'description': data.get('new_product_description'),
+                'starting_price': data.get('new_product_starting_price'),
+                'category': data.get('new_product_category')
+            }
+            product_images = request.FILES.getlist('new_product_image')
+            if not product_images:
+                return Response({'error': 'No image provided for the new product'}, status=status.HTTP_400_BAD_REQUEST)
 
-        try:
-            product = Product.objects.get(id=product_data)
-            AuctionProduct.objects.create(auction=auction, product=product)
-        except Product.DoesNotExist:
-            return Response({'error': f'Product with id {product_data} not found'}, status=status.HTTP_400_BAD_REQUEST)
+            try:
+                category = Category.objects.get(id=new_product_data['category'])
+                product = Product.objects.create(
+                    name=new_product_data['name'],
+                    description=new_product_data['description'],
+                    starting_price=new_product_data['starting_price'],
+                    category=category,
+                    seller=user,
+                    image=product_images[0]  # Используем первое изображение
+                )
+                AuctionProduct.objects.create(auction=auction, product=product)
+            except Category.DoesNotExist:
+                return Response({'error': f"Category with id {new_product_data['category']} not found"},
+                                status=status.HTTP_400_BAD_REQUEST)
+            except Exception as e:
+                return Response({'error': f"Unexpected error: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            # Использование существующего продукта
+            try:
+                product = Product.objects.get(id=product_data)
+                AuctionProduct.objects.create(auction=auction, product=product)
+            except Product.DoesNotExist:
+                return Response({'error': f'Product with id {product_data} not found'}, status=status.HTTP_400_BAD_REQUEST)
 
     elif auction_type == 'multiple':
         created_products = []
@@ -441,7 +469,7 @@ def create_auction(request):
                     starting_price=product_data['starting_price'],
                     category=category,
                     seller=user,
-                    image=product_images[0]  # Use the first image
+                    image=product_images[0]  # Используем первое изображение
                 )
                 AuctionProduct.objects.create(auction=auction, product=product)
                 created_products.append(product.id)
@@ -460,6 +488,8 @@ def create_auction(request):
             'errors': errors
         }, status=status.HTTP_201_CREATED)
 
+    return Response({'message': 'Auction created successfully', 'auction_id': auction.id},
+                    status=status.HTTP_201_CREATED)
 
 
 @api_view(['POST'])
@@ -673,4 +703,54 @@ def stats_view(request):
         'average_bid': Bid.objects.aggregate(Avg('amount'))['amount__avg'] or 0,
     }
     return Response(stats, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_messages(request, auction_id):
+    print("123\n\n\n\n\n\n\n")
+    messages = Chat.objects.filter(auction_id=auction_id).order_by('timestamp')
+    data = [{"sender_name": msg.sender_name, "message": msg.message} for msg in messages]
+    return JsonResponse(data, safe=False)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def send_message(request):
+    auction_id = request.data.get('auction_id')
+    message = request.data.get('message')
+
+    if not auction_id or not message:
+        return Response({'error': 'Auction ID and message are required'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        auction = Auction.objects.get(id=auction_id)
+        buyer = auction.buyer
+        seller = auction.seller
+    except Auction.DoesNotExist:
+        return Response({'error': 'Auction not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    # Ensure the sender is correctly identified as buyer or seller
+    sender_name = buyer.username if request.user == buyer else seller.username
+    async_to_sync(get_channel_layer().group_send)(
+        f"auction_{auction_id}_chat",
+        {
+            'type': 'chat_message',
+            'message': message,
+            'sender_name': sender_name
+        }
+    )
+    # Create a new chat message in the database
+    chat = Chat.objects.create(
+        auction=auction,
+        buyer=buyer,
+        seller=seller,
+        message=message,
+        sender_name=sender_name
+    )
+
+    return Response({'success': 'Message sent'}, status=status.HTTP_201_CREATED)
+
+
+
 

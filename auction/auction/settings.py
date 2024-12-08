@@ -88,7 +88,7 @@ AUTH_USER_MODEL = 'auctions.User'
 # Database
 CHANNEL_LAYERS = {
     'default': {
-        'BACKEND': 'channels.layers.InMemoryChannelLayer',  # Для локального тестирования
+        'BACKEND': 'channels.layers.InMemoryChannelLayer',
     },
 }
 
