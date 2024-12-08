@@ -1,8 +1,8 @@
 from decimal import Decimal
-from django.db.models import Q
+from django.db.models import Q, Avg
 from django.utils import timezone
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
 from django.utils.timezone import make_aware
 from datetime import datetime
 from rest_framework.response import Response
@@ -56,8 +56,8 @@ def auction_list(request):
     # Сортировка
     auctions = auctions.order_by(sort_by)
 
-    # Сериализация и возвращение результата
-    serializer = AuctionSerializer(auctions, many=True)
+    # Сериализация с передачей контекста
+    serializer = AuctionSerializer(auctions, many=True, context={'request': request})
     return Response(serializer.data, status=status.HTTP_200_OK)
 
 
@@ -72,20 +72,38 @@ def auction_detail(request, pk):
 
     # Определяем продукты в зависимости от типа аукциона
     if auction.auction_type == 'multiple':
-        products_data = ProductSerializer(auction.related_products.all(), many=True).data
+        products = auction.related_products.all()
+        products_data = [
+            {
+                **ProductSerializer(product).data,
+                'image': request.build_absolute_uri(product.image.url) if product.image else None
+            }
+            for product in products
+        ]
         product_data = None
     else:
         product = auction.related_products.first()
-        product_data = ProductSerializer(product).data if product else None
+        if product:
+            product_data = ProductSerializer(product).data
+            product_data['image'] = request.build_absolute_uri(product.image.url) if product.image else None
+        else:
+            product_data = None
         products_data = None
 
     auction_serializer = AuctionSerializer(auction)
     auction_data = auction_serializer.data
 
+    # Проверим, существует ли изображение
+    if auction.banner_image:
+        banner_url = request.build_absolute_uri(auction.banner_image.url)
+    else:
+        banner_url = None
+
+    auction_data['banner_image'] = banner_url
+
     if auction.status == 'finished':
         auction_data['winner'] = auction.buyer.username if auction.buyer else None
-        bids = Bid.objects.filter(auction=auction).order_by('-amount')  # Все ставки на аукцион
-        print(bids)
+        bids = Bid.objects.filter(auction=auction).order_by('-amount')
         auction_data['all_bids'] = BidSerializer(bids, many=True).data
 
     if auction.auction_type == 'multiple':
@@ -93,7 +111,6 @@ def auction_detail(request, pk):
     else:
         auction_data['product'] = product_data
 
-    # Приведение типов (например, Decimal → строка)
     if isinstance(auction_data.get('starting_price'), Decimal):
         auction_data['starting_price'] = str(auction_data['starting_price'])
 
@@ -145,16 +162,22 @@ def update_product(request, pk):
     except Product.DoesNotExist:
         return Response({'error': 'Product not found'}, status=status.HTTP_404_NOT_FOUND)
 
-    # Проверка, является ли текущий пользователь владельцем продукта
+    # Check if the current user is the product owner
     if product.seller != request.user:
         return Response({'error': 'You are not the seller of this product'}, status=status.HTTP_403_FORBIDDEN)
 
-    serializer = ProductSerializer(product, data=request.data, partial=True)
+    # Merge request data with uploaded files
+    data = request.data.copy()
+    data.update(request.FILES)
+
+    serializer = ProductSerializer(product, data=data, partial=True)
 
     if serializer.is_valid():
         serializer.save()
         return Response(serializer.data, status=status.HTTP_200_OK)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
 
 
 
@@ -308,18 +331,18 @@ def profile(request):
         'last_name': user.last_name,
         'phone_number': getattr(user, 'phone_number', None),
         'rating': getattr(user, 'rating', 0),
+        'profile_picture': request.build_absolute_uri(user.profile_picture.url) if user.profile_picture else None,
         'favorites': list(user.favorite_auctions.values('id', 'auction_type', 'status', 'banner_image')),
         'auctions': list(Auction.objects.filter(seller=user).values(
             'id', 'auction_type', 'start_time', 'end_time', 'banner_image', 'status'
         )),
-        'participated_auctions': auctions_with_result,  # Добавляем аукционы с результатами
+        'participated_auctions': auctions_with_result,
         'bids_history': list(Bid.objects.filter(buyer=user).values(
             'id', 'auction_id', 'auction__auction_type', 'amount', 'timestamp', 'status'
         ).order_by('-timestamp')),
     }
 
     return Response(profile_data)
-
 
 
 @api_view(['PUT'])
@@ -364,7 +387,6 @@ def rate_user(request, user_id):
 def create_auction(request):
     user = request.user
     data = request.data
-
     auction_type = data.get('auction_type', 'single')
     status_field = data.get('status', 'planned')
 
@@ -374,87 +396,70 @@ def create_auction(request):
     except KeyError:
         return Response({'error': 'start_time and end_time are required'}, status=status.HTTP_400_BAD_REQUEST)
 
-    # Создание аукциона
+    banner_image = request.FILES.get('banner_image')
     auction = Auction.objects.create(
         auction_type=auction_type,
         seller=user,
         start_time=start_time,
         end_time=end_time,
-        status=status_field
+        status=status_field,
+        banner_image=banner_image
     )
 
-    # Работа с одним продуктом
     if auction_type == 'single':
-        if 'name' in data and 'description' in data and 'startingPrice' in data:
-            category_id = data.get('category')
-            if not category_id:
-                return Response({'error': 'Category is required for creating a product'},
-                                 status=status.HTTP_400_BAD_REQUEST)
-            try:
-                category = Category.objects.get(id=category_id)
-            except Category.DoesNotExist:
-                return Response({'error': 'Category not found'}, status=status.HTTP_404_NOT_FOUND)
+        product_data = data.get('product')
+        if not product_data:
+            return Response({'error': 'Product details are required'}, status=status.HTTP_400_BAD_REQUEST)
 
-            product = Product.objects.create(
-                name=data['name'],
-                description=data['description'],
-                starting_price=data['startingPrice'],
-                category=category,
-                seller=user
-            )
-        else:
-            product_id = data.get('product')
-            if not product_id:
-                return Response({'error': 'Product ID or product details are required'}, status=status.HTTP_400_BAD_REQUEST)
-            try:
-                product = Product.objects.get(id=product_id)
-            except Product.DoesNotExist:
-                return Response({'error': 'Product not found'}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            product = Product.objects.get(id=product_data)
+            AuctionProduct.objects.create(auction=auction, product=product)
+        except Product.DoesNotExist:
+            return Response({'error': f'Product with id {product_data} not found'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Связываем продукт с аукционом
-        AuctionProduct.objects.create(auction=auction, product=product)
-
-    else:  # Работа с несколькими продуктами
-        new_products_data = data.get('new_products', [])
+    elif auction_type == 'multiple':
         created_products = []
+        errors = []
+        idx = 0
 
-        for product_data in new_products_data:
-            if isinstance(product_data, dict):  # Если продукт передан в виде словаря, создаём его
-                category_id = product_data.get('category')
-                if not category_id:
-                    return Response({'error': 'Category is required for new product creation'},
-                                    status=status.HTTP_400_BAD_REQUEST)
-                try:
-                    category = Category.objects.get(id=category_id)
-                except Category.DoesNotExist:
-                    return Response({'error': f'Category with ID {category_id} not found'},
-                                    status=status.HTTP_404_NOT_FOUND)
+        while f'new_products[{idx}][name]' in data:
+            try:
+                product_data = {
+                    'name': data[f'new_products[{idx}][name]'],
+                    'description': data[f'new_products[{idx}][description]'],
+                    'starting_price': data[f'new_products[{idx}][starting_price]'],
+                    'category': data[f'new_products[{idx}][category]']
+                }
+                product_images = request.FILES.getlist(f'new_products[{idx}][image]')
+                if not product_images:
+                    raise ValueError(f"No image provided for product {idx}")
+
+                category = Category.objects.get(id=product_data['category'])
                 product = Product.objects.create(
                     name=product_data['name'],
                     description=product_data['description'],
                     starting_price=product_data['starting_price'],
                     category=category,
-                    seller=user
+                    seller=user,
+                    image=product_images[0]  # Use the first image
                 )
-                created_products.append(product)
-            elif isinstance(product_data, int):  # Если передан ID продукта, добавляем его
-                try:
-                    product = Product.objects.get(id=product_data)
-                    created_products.append(product)
-                except Product.DoesNotExist:
-                    return Response({'error': f'Product with ID {product_data} not found'},
-                                    status=status.HTTP_404_NOT_FOUND)
+                AuctionProduct.objects.create(auction=auction, product=product)
+                created_products.append(product.id)
+            except Category.DoesNotExist:
+                errors.append(f"Category with id {product_data.get('category')} not found for product {idx}")
+            except ValueError as e:
+                errors.append(str(e))
+            except Exception as e:
+                errors.append(f"Unexpected error for product {idx}: {e}")
+            idx += 1
 
-        # Проверка наличия продуктов для аукциона
-        if not created_products:
-            return Response({'error': 'No valid products found for the auction'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({
+            'message': 'Auction created successfully',
+            'auction_id': auction.id,
+            'created_products': created_products,
+            'errors': errors
+        }, status=status.HTTP_201_CREATED)
 
-        # Создание связей между аукционом и продуктами
-        for product in created_products:
-            AuctionProduct.objects.create(auction=auction, product=product)
-
-    # Ответ успешного создания аукциона
-    return Response({'message': 'Auction created successfully', 'auction_id': auction.id}, status=status.HTTP_201_CREATED)
 
 
 @api_view(['POST'])
@@ -469,7 +474,7 @@ def create_product(request):
 
     serializer = ProductSerializer(data=data)
     if serializer.is_valid():
-        serializer.save(seller=user)  # Устанавливаем текущего пользователя как продавца
+        serializer.save(seller=user)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -527,12 +532,12 @@ def user_profile_view(request, user_id):
             "rating": user.rating,
             "email": user.email,
             "phone_number": user.phone_number,
+            "profile_picture": request.build_absolute_uri(user.profile_picture.url) if user.profile_picture else None,
             "auctions": auctions_data,  # Добавляем аукционы в ответ
         }
         return Response(profile_data, status=status.HTTP_200_OK)
     except User.DoesNotExist:
         return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
-
 
 
 @api_view(['POST'])
@@ -639,7 +644,6 @@ def place_bid(request, pk):
         return Response({"error": "Некорректная сумма ставки."}, status=status.HTTP_400_BAD_REQUEST)
 
 
-
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def change_user_role(request):
@@ -656,4 +660,17 @@ def change_user_role(request):
     user.save()  # Сохраняем изменения в базе данных
     return Response({'message': f'Role changed to {user.role}'})
 
+
+@api_view(['GET'])
+@permission_classes([IsAdminUser])
+def stats_view(request):
+    stats = {
+        'total_users': User.objects.count(),
+        'active_users': User.objects.filter(is_active=True).count(),
+        'total_products': Product.objects.count(),
+        'active_auctions': Auction.objects.filter(status="active").count(),
+        'total_bids': Bid.objects.count(),
+        'average_bid': Bid.objects.aggregate(Avg('amount'))['amount__avg'] or 0,
+    }
+    return Response(stats, status=status.HTTP_200_OK)
 

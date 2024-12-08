@@ -23,27 +23,32 @@ class UserProfileSerializer(serializers.ModelSerializer):
 
 
 class ProductSerializer(serializers.ModelSerializer):
-    category = serializers.PrimaryKeyRelatedField(queryset=Category.objects.all())  # Для связи по ID
-    seller = serializers.StringRelatedField(read_only=True)  # Для отображения имени продавца
+    category = serializers.PrimaryKeyRelatedField(queryset=Category.objects.all())
+    seller = serializers.StringRelatedField(read_only=True)
 
     class Meta:
         model = Product
-        fields = ['id', 'name', 'description', 'starting_price', 'is_active', 'category', 'image', 'seller', 'created_at', 'auctions']
+        fields = [
+            'id', 'name', 'description', 'starting_price',
+            'is_active', 'category', 'image', 'seller',
+            'created_at', 'auctions'
+        ]
         read_only_fields = ['seller', 'created_at', 'auctions']
 
 
 class AuctionSerializer(serializers.ModelSerializer):
-    product = ProductSerializer(required=False)  # Это для одного продукта
-    products = ProductSerializer(many=True, read_only=True)  # Это для нескольких продуктов
+    product = ProductSerializer(required=False)
+    products = ProductSerializer(many=True, read_only=True)
     auction_type_display = serializers.CharField(source='get_auction_type_display', read_only=True)
     start_time = serializers.DateTimeField(format='%Y-%m-%dT%H:%M')
-    end_time = serializers.DateTimeField(format='%Y-%m-%dT%H:%M')  # Пример формата
-    seller = UserProfileSerializer()  # Используем UserProfileSerializer для детальной информации
+    end_time = serializers.DateTimeField(format='%Y-%m-%dT%H:%M')
+    seller = UserProfileSerializer()
     buyer = serializers.StringRelatedField()
     starting_price = serializers.DecimalField(
         source='product.starting_price', max_digits=10, decimal_places=2, read_only=True
     )
     product_name = serializers.CharField(source='product.name', read_only=True)
+    banner_image = serializers.ImageField(allow_null=True)
 
     class Meta:
         model = Auction
@@ -57,20 +62,24 @@ class AuctionSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         representation = super().to_representation(instance)
 
-        # Получаем связанные продукты через промежуточную модель AuctionProduct
-        products = instance.related_products.all()
+        # Получение request из контекста
+        request = self.context.get('request')
+        if instance.banner_image:
+            # Генерация абсолютного URL для banner_image
+            if request:
+                representation['banner_image'] = request.build_absolute_uri(instance.banner_image.url)
+            else:
+                representation['banner_image'] = instance.banner_image.url
 
+        products = instance.related_products.all()
         if products.exists():
             product_names = [product.name for product in products]
             representation['product_name'] = ', '.join(product_names)
 
-            # Безопасное преобразование в Decimal
             try:
                 starting_price = products.first().starting_price
-                if starting_price is None:
-                    representation['starting_price'] = 'Не установлена'
-                else:
-                    representation['starting_price'] = Decimal(starting_price)
+                representation['starting_price'] = 'Не установлена' if starting_price is None else Decimal(
+                    starting_price)
             except InvalidOperation:
                 representation['starting_price'] = 'Некорректное значение'
         else:
@@ -204,7 +213,13 @@ class TokenObtainPairSerializer(serializers.Serializer):
         }
 
 
-
+class StatsSerializer(serializers.Serializer):
+    total_users = serializers.IntegerField()
+    active_users = serializers.IntegerField()
+    total_products = serializers.IntegerField()
+    active_auctions = serializers.IntegerField()
+    total_bids = serializers.IntegerField()
+    average_bid = serializers.FloatField()
 
 
 

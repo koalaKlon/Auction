@@ -41,7 +41,6 @@ class AuctionConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def get_highest_bid(self, auction):
-        # This is a synchronous function to get the highest bid
         return Bid.objects.filter(auction=auction).order_by('-amount').first()
 
     async def disconnect(self, close_code):

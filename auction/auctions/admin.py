@@ -1,6 +1,8 @@
 from django import forms
 from django.contrib import admin
 from django.core.exceptions import ValidationError
+from django.db.models import Avg
+
 from .models import Product, Auction, Category, User, Bid, Chat, Rating, AuctionProduct
 
 
@@ -148,3 +150,5 @@ class AuctionProductAdmin(admin.ModelAdmin):
     list_filter = ('auction',)
     ordering = ('-id',)
     actions = ['delete_selected']
+
+
