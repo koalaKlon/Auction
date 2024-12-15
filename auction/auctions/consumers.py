@@ -64,9 +64,26 @@ class AuctionConsumer(AsyncWebsocketConsumer):
     async def auction_update(self, event):
         message = event['message']
 
-        # Отправляем данные клиенту
+        # Send the message to WebSocket clients
         await self.send(text_data=json.dumps({
             'message': message
+        }))
+
+        # If the auction is finished, send a specific notification
+        if message.get('status') == 'finished':
+            await self.channel_layer.group_send(
+                self.auction_group_name,
+                {
+                    'type': 'notify_auction_end',
+                    'winner': message.get('winner'),
+                }
+            )
+
+    async def notify_auction_end(self, event):
+        # Notify all connected clients
+        await self.send(text_data=json.dumps({
+            'status': 'finished',
+            'winner': event['winner']
         }))
 
 

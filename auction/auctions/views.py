@@ -65,6 +65,16 @@ def auction_list(request):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 @authentication_classes([])
+def category_list(request):
+    categories = Category.objects.all()
+    print(categories)
+    serializer = CategorySerializer(categories, many=True)
+    return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+@authentication_classes([])
 def auction_detail(request, pk):
     try:
         auction = Auction.objects.select_related('seller').prefetch_related('related_products').get(pk=pk)
@@ -101,6 +111,15 @@ def auction_detail(request, pk):
         banner_url = None
 
     auction_data['banner_image'] = banner_url
+
+    # Добавление имени текущего лидера
+    highest_bid = Bid.objects.filter(auction=auction).order_by('-amount').first()
+    if highest_bid:
+        auction_data['current_leader'] = highest_bid.buyer.username
+        auction_data['current_bid'] = str(highest_bid.amount)
+    else:
+        auction_data['current_leader'] = None
+        auction_data['current_bid'] = None
 
     if auction.status == 'finished':
         auction_data['winner'] = auction.buyer.username if auction.buyer else None
@@ -177,9 +196,6 @@ def update_product(request, pk):
         serializer.save()
         return Response(serializer.data, status=status.HTTP_200_OK)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-
 
 
 @api_view(['POST'])
@@ -708,7 +724,6 @@ def stats_view(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_messages(request, auction_id):
-    print("123\n\n\n\n\n\n\n")
     messages = Chat.objects.filter(auction_id=auction_id).order_by('timestamp')
     data = [{"sender_name": msg.sender_name, "message": msg.message} for msg in messages]
     return JsonResponse(data, safe=False)

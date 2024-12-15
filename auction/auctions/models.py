@@ -25,24 +25,23 @@ class User(AbstractUser):
 
     def calculate_average_rating(self):
         """Пересчитываем средний рейтинг пользователя на основе всех его рейтингов."""
-        ratings = Rating.objects.filter(rated_user=self)  # Учитываем все рейтинги для данного пользователя
+        ratings = Rating.objects.filter(rated_user=self)
         if ratings:
             total_rating = sum([rating.rating for rating in ratings])
             avg_rating = total_rating / len(ratings)
-            self.rating = round(avg_rating, 2)  # Обновляем поле rating с округлением до двух знаков
+            self.rating = round(avg_rating, 2)
         else:
-            self.rating = 0  # Если нет рейтингов, устанавливаем 0
-        self.save()  # Сохраняем изменения в базе
+            self.rating = 0
+        self.save()
 
-    # Уникальные и осмысленные имена для связанных полей
     groups = models.ManyToManyField(
         'auth.Group',
-        related_name='users_in_group',  # Лучше выбрать осмысленное имя
+        related_name='users_in_group',
         blank=True
     )
     user_permissions = models.ManyToManyField(
         'auth.Permission',
-        related_name='permissions_for_user',  # Осмысленное имя
+        related_name='permissions_for_user',
         blank=True
     )
 
@@ -103,7 +102,7 @@ class Auction(models.Model):
     status = models.CharField(max_length=20, default='planned')
 
     def update_status(self):
-        current_time = timezone.now()  # Получаем текущее время с учетом часового пояса
+        current_time = timezone.now()
         if current_time < self.start_time:
             self.status = 'planned'
             self.save()
