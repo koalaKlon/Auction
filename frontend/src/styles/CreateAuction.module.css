@@ -1,0 +1,48 @@
+.form {
+    width: 80%;
+    max-width: 60%;
+    margin: 20px auto;
+    padding: 20px;
+    background-color: #2c2c2c;
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    font-family: Arial, sans-serif;
+    color: #e0e0e0;
+    box-sizing: border-box;
+  }
+  
+  .field {
+    margin-bottom: 20px;
+  }
+  
+  .input, .select, .textarea {
+    width: calc(100% - 20px);
+    padding: 10px;
+    margin-bottom: 15px;
+    border: 1px solid #444;
+    border-radius: 5px;
+    font-size: 1em;
+    background-color: #3b3b3b;
+    color: #fff;
+  }
+  
+  .input:focus, .select:focus, .textarea:focus {
+    border-color: #ffa500;
+    outline: none;
+  }
+  
+  button {
+    width: 100%;
+    padding: 10px;
+    background-color: #3f51b5;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 1.2em;
+  }
+  
+  button:hover {
+    background-color: #283593;
+  }
+  
