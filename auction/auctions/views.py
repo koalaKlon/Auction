@@ -326,9 +326,7 @@ def profile(request):
 
     for bid in participated_bids:
         auction = bid.auction
-        # Проверяем, был ли пользователь победителем
         is_winner = auction.buyer == user
-        # Добавляем информацию о ставке
         auctions_with_result.append({
             'id': auction.id,
             'auction_type': auction.auction_type,
@@ -336,7 +334,7 @@ def profile(request):
             'end_time': auction.end_time,
             'banner_image': auction.banner_image.url if auction.banner_image else None,
             'status': auction.status,
-            'is_winner': is_winner,  # Добавляем поле для результата (выиграл или нет)
+            'is_winner': is_winner,
             'buyer__username': auction.buyer.username if auction.buyer else None,
         })
 
