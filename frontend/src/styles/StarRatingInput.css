@@ -1,0 +1,72 @@
+/* Контейнер для звездного рейтинга */
+.starRating {
+    display: flex;
+    flex-direction: row; /* Горизонтальное расположение звезд */
+    justify-content: center; /* Центрирование */
+    align-items: center; /* Вертикальное выравнивание */
+    gap: 5px; /* Расстояние между звездами */
+    margin: 15px 0; /* Отступы сверху и снизу */
+    cursor: pointer; /* Курсор указывает на интерактивность */
+}
+
+/* Базовый стиль для звезд */
+.star {
+    font-size: 30px; /* Увеличенный размер звезд */
+    color: #ccc; /* Цвет неактивных звезд */
+    transition: transform 0.2s ease, color 0.3s ease; /* Анимация изменения цвета и размера */
+}
+
+/* Активная звезда */
+.star.filled {
+    color: #ffa500; /* Оранжевый цвет активной звезды */
+}
+
+/* Эффект при наведении */
+.star:hover {
+    transform: scale(1.3); /* Увеличение звезды при наведении */
+}
+
+/* Кнопка сброса рейтинга */
+.resetButton {
+    margin-top: 10px;
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    background-color: #f44336; /* Красный цвет */
+    color: white;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); /* Легкая тень */
+}
+
+/* Эффект при наведении на кнопку */
+.resetButton:hover {
+    background-color: #d32f2f; /* Более темный красный цвет */
+    transform: scale(1.05); /* Легкое увеличение */
+}
+
+/* Убирает фокус вокруг кнопки */
+.resetButton:focus {
+    outline: none;
+}
+
+/* Дополнительный стиль для контейнера кнопки */
+.resetButtonContainer {
+    display: flex;
+    justify-content: center;
+    margin-top: 20px;
+}
+
+.auctions-list{
+    margin-bottom: 10px;
+}
+
+.profile-picture {
+    width: 150px;
+    height: 150px;
+    border-radius: 50%;
+    object-fit: cover;
+    margin-bottom: 20px;
+  }
+  

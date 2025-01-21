@@ -1,0 +1,68 @@
+.filters-container {
+  display: flex;
+  flex-direction: column; /* Размещение элементов по вертикали */
+  gap: 15px;
+  margin-bottom: 30px;
+  align-items: center; /* Центрирование по горизонтали */
+}
+
+.search-container {
+  display: flex; /* Для размещения строки и кнопки в одну строку */
+  gap: 10px; /* Расстояние между строкой и кнопкой */
+  width: 100%; /* Занять всю доступную ширину */
+  max-width: 600px; /* Максимальная ширина для контейнера */
+}
+
+.filter-input {
+  flex: 1; /* Позволяет строке поиска занимать доступное пространство */
+  padding: 10px;
+  border: 1px solid #444;
+  border-radius: 8px;
+  background-color: #2c2c2c;
+  color: #e0e0e0;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.3s ease;
+}
+
+.filter-input:focus {
+  border-color: #ffcc00;
+}
+
+.apply-filters-btn {
+  padding: 10px 20px;
+  font-size: 14px;
+  border: none;
+  border-radius: 8px;
+  background-color: #3f51b5;
+  color: #fff;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  max-width: 20%; /* Устанавливаем минимальную ширину для кнопки */
+}
+
+.apply-filters-btn:hover {
+  background-color: #283593;
+}
+
+.filters-dropdowns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+  justify-content: center; /* Центрирование выпадающих списков */
+}
+
+.filter-select {
+  padding: 10px;
+  border: 1px solid #444;
+  border-radius: 8px;
+  background-color: #2c2c2c;
+  color: #e0e0e0;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.3s ease;
+}
+
+.filter-select:focus {
+  border-color: #ffcc00;
+}

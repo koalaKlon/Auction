@@ -1,0 +1,174 @@
+.auction-detail-container {
+  background-color: #181818;
+  color: #e0e0e0;
+  padding: 25px;
+  border-radius: 12px;
+  box-shadow: 0 5px 10px rgba(0, 0, 0, 0.3);
+  max-width: 50%;
+  margin: 30px auto;
+  text-align: left;
+  font-family: 'Roboto', sans-serif;
+}
+
+.auction-banner {
+  width: 70%; /* Set the width to 70% of the container */
+  max-width: 100%; /* Ensure it does not exceed 100% of the container width */
+  height: auto; /* Maintain the aspect ratio */
+  border-radius: 12px;
+  margin-bottom: 25px;
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
+  object-fit: contain; /* Adjusts the image size while maintaining the aspect ratio */
+  margin: 0 auto; /* Centers the banner */
+}
+
+
+.auction-details {
+  margin-bottom: 25px;
+}
+
+.seller-link {
+  margin-bottom: 20px;
+}
+
+.seller-link a {
+  color: #ff9800;
+  text-decoration: none;
+  font-weight: bold;
+  transition: color 0.3s ease;
+}
+
+.seller-link a:hover {
+  color: #ff5722;
+}
+
+.auction-products {
+  list-style: none;
+  padding: 0;
+  margin-top: 20px;
+}
+
+.auction-products li {
+  background-color: #2a2a2a;
+  padding: 15px;
+  margin: 15px 0;
+  border-radius: 8px;
+  transition: background-color 0.3s ease;
+}
+
+.auction-products li:hover {
+  background-color: #3a3a3a;
+}
+
+.auction-product {
+  background-color: #2a2a2a;
+  padding: 15px;
+  border-radius: 8px;
+  margin-bottom: 15px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.auction-product img {
+  width: 30%;
+  max-width: 100%;  /* Ограничение ширины фото */
+  height: auto;
+  border-radius: 8px;
+  object-fit: cover;
+  margin-bottom: 15px;
+}
+
+.button-primary {
+  background-color: #6200ea;
+  color: white;
+  border: none;
+  padding: 12px 25px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.3s ease, transform 0.3s ease;
+}
+
+.button-primary:hover {
+  background-color: #3700b3;
+  transform: scale(1.05);
+}
+
+.button-secondary {
+  background-color: #03dac6;
+  color: white;
+  border: none;
+  padding: 12px 25px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.3s ease, transform 0.3s ease;
+}
+
+.button-secondary:hover {
+  background-color: #3700b3;
+  transform: scale(1.05);
+}
+
+.bid-controls {
+  background-color: #353535;
+  padding: 20px;
+  border-radius: 10px;
+  margin-bottom: 25px;
+}
+
+.bid-controls input {
+  width: 100%;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  margin-bottom: 15px;
+}
+
+.bid-controls input:focus {
+  outline: none;
+  border-color: #6200ea;
+}
+
+.favorite-button {
+  background-color: #ff4081;
+  color: white;
+  padding: 10px 20px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.favorite-button:hover {
+  background-color: #f50057;
+}
+
+.auction-status {
+  font-size: 18px;
+  color: #4caf50;
+  margin-bottom: 20px;
+}
+
+.auction-status.ended {
+  color: #f44336;
+}
+
+.auction-winner {
+  font-weight: bold;
+  margin-top: 20px;
+}
+
+.bids-list {
+  background-color: #2b2b2b;
+  padding: 15px;
+  border-radius: 8px;
+  margin-top: 20px;
+}
+
+.bids-list li {
+  background-color: #383838;
+  padding: 10px;
+  margin: 10px 0;
+  border-radius: 6px;
+}
+
+.bids-list li:hover {
+  background-color: #505050;
+}
