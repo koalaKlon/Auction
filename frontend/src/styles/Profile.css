@@ -1,0 +1,218 @@
+.profile-container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 20px;
+  background-color: #181818; /* Тёмный фон */
+  color: #e0e0e0; /* Светлый текст */
+  border-radius: 12px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Заголовок профиля */
+h2 {
+  text-align: center;
+  color: #e0e0e0; /* Светлый текст */
+}
+
+/* Стили заголовка профиля */
+.profile-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #3a3a3a;
+  padding-bottom: 10px;
+}
+
+.profile-picture {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin-right: 20px;
+  border: 2px solid #505050; /* Добавление рамки */
+}
+
+.profile-placeholder {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background-color: #2a2a2a; /* Тёмный оттенок */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: #e0e0e0; /* Светлый текст */
+  margin-right: 20px;
+}
+
+/* Информация о пользователе */
+.profile-header div p {
+  margin: 5px 0;
+  color: #e0e0e0; /* Светлый текст */
+}
+
+/* Секция рейтинга */
+.tabs {
+  display: flex;
+  justify-content: space-around;
+  margin: 20px 0;
+  border-bottom: 1px solid #3a3a3a;
+}
+
+.tabs button {
+  background: none;
+  border: none;
+  padding: 10px 15px;
+  cursor: pointer;
+  color: #e0e0e0;
+  font-size: 16px;
+  transition: 0.3s;
+  border-bottom: 3px solid transparent;
+}
+
+.tabs button:hover {
+  color: #ff9800;
+}
+
+.tabs .active-tab {
+  color: #ff5722;
+  font-weight: bold;
+  border-bottom-color: #ff9800;
+}
+
+/* Карточки аукционов */
+.auction-card {
+  display: flex;
+  flex-direction: column; /* Карточки остаются вертикальными внутри */
+  background-color: #2a2a2a;
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  padding: 15px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  width: calc(35% - 20px); /* Устанавливаем ширину карточки, чтобы они располагались по строкам */
+  box-sizing: border-box;
+}
+
+
+.auction-image {
+  width: 100%;
+  height: 150px;
+  object-fit: cover;
+  border-radius: 5px;
+  margin-bottom: 10px;
+}
+
+.auction-card h4 {
+  margin: 10px 0;
+  color: #e0e0e0;
+}
+
+.auction-card p {
+  margin: 5px 0;
+  color: #e0e0e0;
+}
+
+.auction-card button {
+  margin-top: 10px;
+  padding: 10px;
+  background-color: #3f51b5; /* Фиолетовая кнопка */
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: 0.3s;
+}
+
+.auction-card button:hover {
+  background-color: #3700b3;
+}
+
+/* История ставок */
+.bid-card {
+  background-color: #2a2a2a; /* Тёмный фон */
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  padding: 15px;
+  margin-bottom: 15px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.bid-card p {
+  margin: 5px 0;
+  color: #e0e0e0;
+}
+
+/* Фильтр аукционов */
+.auctions-list {
+  display: flex;
+  flex-wrap: wrap; 
+  justify-content: flex-start; 
+  gap: 10px; /* Добавление промежутков между карточками */
+}
+
+
+.auction-item {
+  background-color: #2a2a2a; /* Тёмный фон */
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  padding: 10px;
+  text-align: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.auction-item img {
+  width: 100%;
+  height: 100px;
+  object-fit: cover;
+  border-radius: 5px;
+  margin-bottom: 10px;
+}
+/* Секция фильтра */
+.filter-section {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 20px;
+  padding: 15px;
+  background-color: #1f1f1f; /* Тёмный фон */
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* Метка для фильтра */
+.filter-section label {
+  font-size: 16px;
+  color: #e0e0e0;
+  margin-bottom: 10px;
+  font-weight: bold;
+}
+
+/* Поле выбора фильтра */
+.filter-section select {
+  padding: 10px;
+  font-size: 14px;
+  color: #e0e0e0;
+  background-color: #2a2a2a; /* Тёмный фон */
+  border: 1px solid #3a3a3a;
+  border-radius: 5px;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+/* Стиль для hover эффекта */
+.filter-section select:hover {
+  border-color: #ff9800;
+  box-shadow: 0 0 5px rgba(255, 152, 0, 0.5);
+}
+
+/* Стиль для опций в выпадающем списке */
+.filter-section option {
+  background-color: #2a2a2a; /* Тёмный фон для опций */
+  color: #e0e0e0;
+}
+
+/* Фокус на поле выбора */
+.filter-section select:focus {
+  border-color: #ff9800;
+  box-shadow: 0 0 5px rgba(255, 152, 0, 0.5);
+}
