@@ -4,7 +4,7 @@ from django.urls import path
 from .views import product_list, auction_list, auction_detail, register, login, profile, update_profile, rate_user, \
     create_auction, create_product, get_categories, refresh_token, user_profile_view, update_auction, update_product, \
     current_user, product_detail, add_to_favorites, remove_from_favorites, is_favorite, auction_status, place_bid, \
-    change_user_role, stats_view, send_message, get_messages, category_list
+    change_user_role, stats_view, send_message, get_messages, category_list, delete_product, delete_auction
 
 urlpatterns = [
     path('api/products/', product_list, name='product_list'),
@@ -34,6 +34,8 @@ urlpatterns = [
     path('api/chats/<int:auction_id>/', get_messages, name='get_chats'),
     path('api/chats/send_message/', send_message, name='send_message'),
     path('api/categories/', category_list, name='category-list'),
+    path('api/product/<int:pk>/delete/', delete_product, name='delete-product'),
+    path('api/auction/<int:pk>/delete/', delete_auction, name='delete-auction'),
 ]
 
 if settings.DEBUG:

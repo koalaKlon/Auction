@@ -1,5 +1,5 @@
 from decimal import Decimal
-from django.db.models import Q, Avg
+from django.db.models import Q, Avg, Min, Max
 from django.http import JsonResponse
 from django.utils import timezone
 from rest_framework import status
@@ -715,6 +715,8 @@ def stats_view(request):
         'active_auctions': Auction.objects.filter(status="active").count(),
         'total_bids': Bid.objects.count(),
         'average_bid': Bid.objects.aggregate(Avg('amount'))['amount__avg'] or 0,
+        'min_bid': Bid.objects.aggregate(Min('amount'))['amount__min'] or 0,
+        'max_bid': Bid.objects.aggregate(Max('amount'))['amount__max'] or 0,
     }
     return Response(stats, status=status.HTTP_200_OK)
 
@@ -765,5 +767,52 @@ def send_message(request):
     return Response({'success': 'Message sent'}, status=status.HTTP_201_CREATED)
 
 
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def delete_product(request, pk):
+    try:
+        product = Product.objects.get(pk=pk)
+    except Product.DoesNotExist:
+        return Response({'error': 'Product not found'}, status=status.HTTP_404_NOT_FOUND)
 
+    # Проверяем, является ли пользователь продавцом или админом
+    if product.seller != request.user and request.user.username != 'admin':
+        return Response({'error': 'You are not the seller of this product'}, status=status.HTTP_403_FORBIDDEN)
+
+    # Получаем все аукционы, связанные с продуктом
+    auctions = product.auctions.all()
+
+    # Удаляем продукт
+    product.delete()
+
+    remaining_products = 0
+
+    for auction in auctions:
+        remaining_products = AuctionProduct.objects.filter(auction=auction).count()
+
+        if remaining_products == 0:
+            auction.delete()
+
+    # Возвращаем статус 200 и данные о количестве оставшихся товаров
+    return Response({
+        'message': 'Product deleted successfully',
+        'remaining_products': remaining_products  # Теперь отправляем данные
+    }, status=status.HTTP_200_OK)
+
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def delete_auction(request, pk):
+    try:
+        auction = Auction.objects.get(pk=pk)
+    except Auction.DoesNotExist:
+        return Response({'error': 'Auction not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    # Проверяем права доступа: пользователь должен быть продавцом или админом
+    if auction.seller != request.user and request.user.username != 'admin':
+        return Response({'error': 'You are not authorized to delete this auction'}, status=status.HTTP_403_FORBIDDEN)
+
+    auction.delete()
+    return Response({'message': 'Auction deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
 
