@@ -1,8 +1,9 @@
 # IDE files
 .idea/
 
-# Python cache files
-auction/auctions/__pycache__/
+# Python cache and compiled files
+*.pyc
+__pycache__/
 
 # Media files
 auction/media/auction_banners/
@@ -19,3 +20,20 @@ auction/.env
 # Frontend build artifacts and dependencies
 frontend/node_modules/
 frontend/public/
+
+# Docker files (optional, depending on usage)
+*.dockerignore
+
+# JSON files (ignore temporary or generated JSON)
+*.json
+
+# Ignore CSS files in styles if needed
+*.css
+
+# Ignore log and temporary files
+*.log
+*.tmp
+
+# Ignore compiled assets
+dist/
+build/
