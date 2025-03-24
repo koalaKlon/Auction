@@ -1,5 +1,21 @@
-# .gitignore
+# IDE files
+.idea/
+
+# Python cache files
+auction/auctions/__pycache__/
+
+# Media files
+auction/media/auction_banners/
+auction/media/product_images/
+auction/media/user_profiles/
+
+# Virtual environment
+venv/
+.venv/
+
+# Configuration files
 auction/.env
-frontend/.node_modules
-frontend/.public
-.venv
+
+# Frontend build artifacts and dependencies
+frontend/node_modules/
+frontend/public/
