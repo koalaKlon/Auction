@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./auction
+      dockerfile: Dockerfile
+    container_name: django-backend
+    command: daphne -p 8000 auction.asgi:application
+    volumes:
+      - ./auction:/app
+      - ./auction/media:/app/media
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./auction/.env
+    depends_on:
+      - db
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: react-frontend
+    stdin_open: true
+    volumes:
+      - ./frontend:/app
+    ports:
+      - "3000:3000"
+
+  db:
+    image: postgres:15-alpine
+    container_name: postgres-db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: "django"
+      POSTGRES_PASSWORD: "django_password"
+      POSTGRES_DB: "django_db"
+    ports:
+      - "5432:5432"
+
+volumes:
+  postgres_data:
