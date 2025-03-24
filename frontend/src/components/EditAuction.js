@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useParams, useNavigate } from 'react-router-dom';
-import '../styles/EditAuction.css'
+import '../styles/EditAuction.css';
 
 const EditAuction = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [auction, setAuction] = useState(null);
   const [error, setError] = useState(null);
-  const [file, setFile] = useState(null); // Для хранения файла изображения
+  const [file, setFile] = useState(null);
 
   useEffect(() => {
     axios.get(`http://localhost:8000/api/auction/${id}/`)
@@ -22,7 +22,7 @@ const EditAuction = () => {
 
   const handleChange = (e) => {
     if (e.target.type === 'file') {
-      setFile(e.target.files[0]); // Обрабатываем файл
+      setFile(e.target.files[0]);
     } else {
       setAuction({ ...auction, [e.target.name]: e.target.value });
     }
@@ -31,36 +31,53 @@ const EditAuction = () => {
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    const token = localStorage.getItem("access_token"); // Получаем токен
+    const token = localStorage.getItem("access_token");
     const formData = new FormData();
     formData.append('name', auction.name);
     formData.append('start_time', auction.start_time);
     formData.append('end_time', auction.end_time);
 
     if (file) {
-      formData.append('banner_image', file); // Добавляем изображение
+      formData.append('banner_image', file);
     }
 
     axios.put(`http://localhost:8000/api/auction/${id}/update/`, formData, {
       headers: {
-        'Content-Type': 'multipart/form-data', // Указываем тип контента для файлов
-        Authorization: `Bearer ${token}`, // Передаем токен в заголовке
+        'Content-Type': 'multipart/form-data',
+        Authorization: `Bearer ${token}`,
       },
     })
     .then(() => {
-      navigate(`/auctions/${id}`); // Перенаправляем после успешного обновления
+      navigate(`/auctions/${id}`);
     })
     .catch(err => {
       setError('Ошибка при сохранении данных');
     });
   };
 
+  const handleDelete = () => {
+    const confirmed = window.confirm("Вы уверены, что хотите удалить этот аукцион?");
+    if (!confirmed) return;
+
+    const token = localStorage.getItem("access_token");
+    axios.delete(`http://localhost:8000/api/auction/${id}/delete/`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
+    .then(() => {
+      navigate('/'); // Перенаправляем на главную страницу после удаления
+    })
+    .catch(err => {
+      setError('Ошибка при удалении аукциона');
+    });
+  };
+
   if (!auction) return <div className="loading">Загрузка...</div>;
   if (error) return <div className="error">{error}</div>;
 
-  // Функция для форматирования даты
   const formatDate = (date) => {
-    return new Date(date).toISOString().slice(0, 16); // Форматируем как YYYY-MM-DDTHH:MM
+    return new Date(date).toISOString().slice(0, 16);
   };
 
   return (
@@ -100,6 +117,9 @@ const EditAuction = () => {
       </div>
 
       <button type="submit" className="submit-btn">Сохранить изменения</button>
+      <button type="button" onClick={handleDelete} className="delete-btn">
+        Удалить аукцион
+      </button>
     </form>
   );
 };

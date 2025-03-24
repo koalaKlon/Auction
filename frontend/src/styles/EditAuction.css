@@ -22,6 +22,7 @@
     display: block;
   }
   
+  
   input[type="file"], input[type="datetime-local"] {
     width: 100%;
     padding: 12px;

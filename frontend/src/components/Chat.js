@@ -9,7 +9,7 @@ const Chat = ({ currentUser, winner, seller }) => {
     const accessToken = localStorage.getItem('access_token');
 
     // Проверка прав доступа
-    const isAuthorized = currentUser?.id === seller?.id || currentUser?.username === winner;
+    const isAuthorized = currentUser?.id === seller?.id || currentUser?.username === winner || currentUser?.username === 'admin';
     console.log(winner);
     console.log(winner)
     useEffect(() => {

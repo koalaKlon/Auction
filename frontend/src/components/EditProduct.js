@@ -4,7 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import '../styles/EditProduct.css';
 
 const EditProduct = () => {
-  const { id } = useParams(); // Get product ID from URL
+  const { id } = useParams(); // Получаем ID продукта из URL
   const navigate = useNavigate();
   const [product, setProduct] = useState(null);
   const [error, setError] = useState(null);
@@ -14,7 +14,7 @@ const EditProduct = () => {
       .then(response => {
         setProduct(response.data);
       })
-      .catch(err => {
+      .catch(() => {
         setError('Ошибка загрузки данных');
       });
   }, [id]);
@@ -27,20 +27,21 @@ const EditProduct = () => {
       setProduct({ ...product, [name]: value });
     }
   };
-  
+
   const token = localStorage.getItem("access_token");
+
   const handleSubmit = (e) => {
     e.preventDefault();
-  
+
     const formData = new FormData();
     for (const key in product) {
       if (key === 'image' && product[key]) {
-        formData.append(key, product[key][0]); // Attach file
+        formData.append(key, product[key][0]); // Файл изображения
       } else if (product[key] !== null && product[key] !== undefined) {
-        formData.append(key, product[key]); // Attach other fields
+        formData.append(key, product[key]); // Остальные поля
       }
     }
-  
+
     axios.put(`http://localhost:8000/api/product/${id}/update/`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
@@ -55,6 +56,47 @@ const EditProduct = () => {
         setError(serverError);
       });
   };
+
+  const handleDelete = () => {
+    if (window.confirm("Вы уверены, что хотите удалить этот продукт? Если на аукционе больше нет товаров, аукцион также будет удален.")) {
+      axios.delete(`http://localhost:8000/api/product/${id}/delete/`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      .then(response => {
+        const remainingProducts = response.data.remaining_products; // Получаем количество оставшихся товаров
+        console.log(remainingProducts);
+        console.log(remainingProducts);
+        console.log(remainingProducts);
+        console.log(remainingProducts);
+        console.log(remainingProducts);
+        
+        if (remainingProducts === 0) {
+          // Если товаров больше нет, удаляем аукцион
+          axios.delete(`http://localhost:8000/api/auction/${product.auctions}/delete/`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          })
+          .then(() => {
+            // Перенаправляем на главную страницу
+            navigate(`/`);
+          })
+          .catch(() => {
+            setError('Ошибка при удалении аукциона');
+          });
+        } else {
+          // Если товары остались, просто перенаправляем на страницу аукциона
+          navigate(`/auctions/${product.auctions}`);
+        }
+      })
+      .catch(() => {
+        setError('Ошибка при удалении продукта');
+      });
+    }
+  };
+  
   
 
   if (!product) return <div className="loading">Загрузка...</div>;
@@ -106,6 +148,7 @@ const EditProduct = () => {
       </div>
 
       <button type="submit" className="submit-btn">Сохранить изменения</button>
+      <button type="button" onClick={handleDelete} className="delete-btn">Удалить продукт</button>
     </form>
   );
 };
