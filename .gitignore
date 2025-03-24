@@ -1,0 +1,5 @@
+# .gitignore
+auction/.env
+frontend/.node_modules
+frontend/.public
+.venv
